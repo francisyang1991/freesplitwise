@@ -26,10 +26,6 @@ export async function POST(req: NextRequest, context: RouteParams) {
   const { groupId } = await context.params;
   const session = await getServerSession(authOptions);
 
-  if (!session || session.user.role !== "ADMIN") {
-    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
-  }
-
   const body = await req.json().catch(() => null);
   const providedEmail = normalizeEmail(body?.email);
   const providedName = normalizeName(body?.name);
@@ -37,13 +33,36 @@ export async function POST(req: NextRequest, context: RouteParams) {
   const wantsBatch = Boolean(body?.generateDummy);
   const batchCountRaw = Number(body?.count ?? 5);
 
+  if (!session?.user?.id) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
   const group = await prisma.group.findUnique({
     where: { id: groupId },
-    select: { id: true },
+    select: {
+      id: true,
+      ownerId: true,
+      memberships: {
+        select: {
+          id: true,
+          userId: true,
+          role: true,
+        },
+      },
+    },
   });
 
   if (!group) {
     return NextResponse.json({ error: "Group not found" }, { status: 404 });
+  }
+
+  const isAdmin = session.user.role === "ADMIN";
+  const isOwner = group.memberships.some(
+    (membership) => membership.userId === session.user.id && membership.role === "OWNER",
+  ) || group.ownerId === session.user.id;
+
+  if (!isAdmin && !isOwner) {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
   if (wantsBatch) {

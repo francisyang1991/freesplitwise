@@ -123,3 +123,37 @@ export async function PUT(req: NextRequest, context: RouteParams) {
 
   return NextResponse.json(toExpenseSummary(updatedExpense), { status: 200 });
 }
+
+export async function DELETE(req: NextRequest, context: RouteParams) {
+  const { groupId, expenseId } = await context.params;
+  const session = await getServerSession(authOptions);
+  if (!session?.user?.id) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
+  const membership = await prisma.membership.findFirst({
+    where: {
+      groupId,
+      userId: session.user.id,
+    },
+  });
+
+  if (!membership) {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  }
+
+  const expense = await prisma.expense.findFirst({
+    where: {
+      id: expenseId,
+      groupId,
+    },
+  });
+
+  if (!expense) {
+    return NextResponse.json({ error: "Expense not found" }, { status: 404 });
+  }
+
+  await prisma.expense.delete({ where: { id: expenseId } });
+
+  return NextResponse.json({ success: true }, { status: 200 });
+}

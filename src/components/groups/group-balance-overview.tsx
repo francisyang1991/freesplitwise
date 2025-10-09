@@ -1,8 +1,12 @@
+"use client";
+
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { formatCurrency } from "@/lib/currency";
 import type { BalanceEntry, SettlementSuggestion } from "@/lib/settlement";
 import type { GroupMemberInfo } from "@/lib/group-serializers";
 
 type Props = {
+  groupId: string;
   currency: string;
   balances: BalanceEntry[];
   settlements: SettlementSuggestion[];
@@ -15,39 +19,86 @@ const nameForMember = (member: GroupMemberInfo) => {
 };
 
 export function GroupBalanceOverview({
+  groupId,
   currency,
   balances,
   settlements,
   currentUserId,
   currentMember,
 }: Props) {
-  if (!currentMember) {
-    return null;
-  }
+  const [ledgerBalances, setLedgerBalances] = useState<BalanceEntry[]>(balances);
+  const [ledgerSettlements, setLedgerSettlements] =
+    useState<SettlementSuggestion[]>(settlements);
 
-  const currentBalance = balances.find(
-    (balance) => balance.member.userId === currentUserId,
-  );
+  useEffect(() => {
+    setLedgerBalances(balances);
+    setLedgerSettlements(settlements);
+  }, [balances, settlements]);
 
-  if (!currentBalance) {
-    return null;
-  }
+  const refreshLedger = useCallback(async () => {
+    try {
+      const response = await fetch(`/api/groups/${groupId}/settlements`);
+      if (!response.ok) {
+        throw new Error("Failed to refresh balance overview");
+      }
+      const payload = await response.json();
+      setLedgerBalances(payload.balances ?? []);
+      setLedgerSettlements(payload.settlements ?? []);
+    } catch (error) {
+      console.error("Unable to refresh balance overview", error);
+    }
+  }, [groupId]);
 
-  const net = currentBalance.netCents;
+  useEffect(() => {
+    const handler = (event: Event) => {
+      if (
+        event instanceof CustomEvent &&
+        event.detail &&
+        typeof event.detail === "object" &&
+        "groupId" in event.detail &&
+        event.detail.groupId === groupId
+      ) {
+        void refreshLedger();
+      }
+    };
+
+    window.addEventListener("group:expenses-updated", handler);
+    return () => {
+      window.removeEventListener("group:expenses-updated", handler);
+    };
+  }, [groupId, refreshLedger]);
+
+  const currentBalance = useMemo(() => {
+    return (
+      ledgerBalances.find(
+        (balance) => balance.member.userId === currentUserId,
+      ) ?? null
+    );
+  }, [ledgerBalances, currentUserId]);
+
+  const net = currentBalance?.netCents ?? 0;
   const isCreditor = net > 0;
   const isDebtor = net < 0;
+
+  const breakdown = useMemo(() => {
+    if (!currentBalance) return [];
+    if (!isCreditor && !isDebtor) return [];
+    return ledgerSettlements.filter((settlement) =>
+      isCreditor
+        ? settlement.toMembershipId === currentBalance.membershipId
+        : settlement.fromMembershipId === currentBalance.membershipId,
+    );
+  }, [currentBalance, isCreditor, isDebtor, ledgerSettlements]);
+
+  if (!currentMember || !currentBalance) {
+    return null;
+  }
 
   const headline = isCreditor
     ? `You are owed ${formatCurrency(Math.abs(net), currency)} overall`
     : isDebtor
     ? `You owe ${formatCurrency(Math.abs(net), currency)} overall`
     : "You're all settled up";
-
-  const breakdown = settlements.filter((settlement) =>
-    isCreditor
-      ? settlement.toMembershipId === currentBalance.membershipId
-      : settlement.fromMembershipId === currentBalance.membershipId,
-  );
 
   return (
     <div className="rounded-xl border border-zinc-200 bg-white p-6 shadow-sm">

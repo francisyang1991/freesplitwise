@@ -65,3 +65,7 @@ Ship a functional web demo by end of day featuring Google sign-in, basic group c
 - Add reminders/notifications and advanced debt heuristics.
 - Expand provider options after feedback.
 - Promote database provider to PostgreSQL and capture structured migrations for production.
+- Design refreshed landing/dashboard layout to highlight group list with modal-first creation flow. ✅
+- Introduce modular expense split engine with tabbed UI for equal, weighted, and (future) custom modes. ✅
+- Add owner/admin tooling in group settings (invite link, add members, seed dummy data, leave/delete actions). ✅
+- **Next**: build invite onboarding flow, notification system, mobile-first adjustments, and settlement export options.

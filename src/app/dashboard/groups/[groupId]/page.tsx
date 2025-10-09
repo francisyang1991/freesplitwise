@@ -149,6 +149,7 @@ export default async function GroupPage({ params }: GroupPageProps) {
       </div>
 
       <GroupBalanceOverview
+        groupId={group.id}
         currency={group.currency}
         balances={settlementLedger.balances}
         settlements={settlementLedger.settlements}
@@ -162,6 +163,7 @@ export default async function GroupPage({ params }: GroupPageProps) {
           currency={group.currency}
           members={memberInfos}
           initialExpenses={expenseSummaries}
+          currentMember={currentMember}
         />
         <aside className="flex flex-col gap-6">
           <GroupSettlementsPanel
@@ -169,6 +171,7 @@ export default async function GroupPage({ params }: GroupPageProps) {
             currency={group.currency}
             balances={settlementLedger.balances}
             settlements={settlementLedger.settlements}
+            currentMemberId={currentMember?.membershipId ?? null}
           />
         </aside>
       </div>

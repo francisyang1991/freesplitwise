@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState, type FormEvent } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import type { GroupMemberInfo } from "@/lib/group-serializers";
 import type { ExpenseSummary } from "@/lib/expense-serializers";
 import { formatCurrency, parseCurrencyToCents } from "@/lib/currency";
@@ -10,6 +10,7 @@ type Props = {
   currency: string;
   members: GroupMemberInfo[];
   initialExpenses: ExpenseSummary[];
+  currentMember: GroupMemberInfo | null;
 };
 
 type MemberRow = {
@@ -20,103 +21,33 @@ type MemberRow = {
   autoPaid: boolean;
 };
 
-const distributeAutoPaid = (
-  rows: MemberRow[],
-  totalAmountCents: number,
-): MemberRow[] => {
-  let next: MemberRow[] | null = null;
+type SplitMode = "equal" | "weighted";
 
-  const setPaid = (index: number, value: string) => {
-    if (next) {
-      next[index].paid = value;
-      return;
-    }
-    if (rows[index].paid === value) {
-      return;
-    }
-    next = rows.map((row) => ({ ...row }));
-    next[index].paid = value;
-  };
-
-  const manualPaidCents = rows.reduce((sum, row) => {
-    if (!row.included || row.autoPaid) {
-      return sum;
-    }
-    const cents = parseCurrencyToCents(row.paid);
-    if (!cents || cents <= 0) {
-      return sum;
-    }
-    return sum + cents;
-  }, 0);
-
-  const amountToDistribute = totalAmountCents - manualPaidCents;
-  const autoEntries = rows
-    .map((row, idx) => ({ row, idx }))
-    .filter(({ row }) => row.included && row.autoPaid);
-
-  rows.forEach((row, idx) => {
-    if (!row.included || amountToDistribute <= 0) {
-      if (row.autoPaid && row.paid !== "") {
-        setPaid(idx, "");
-      }
-    }
-  });
-
-  if (amountToDistribute <= 0 || autoEntries.length === 0) {
-    return next ?? rows;
-  }
-
-  const distributable = Math.max(0, amountToDistribute);
-  const base = Math.floor(distributable / autoEntries.length);
-  let remainder = distributable - base * autoEntries.length;
-
-  autoEntries.forEach(({ idx }) => {
-    let amount = base;
-    if (remainder > 0) {
-      amount += 1;
-      remainder -= 1;
-    }
-    const formatted = amount > 0 ? (amount / 100).toFixed(2) : "";
-    setPaid(idx, formatted);
-  });
-
-  return next ?? rows;
+type BalanceLabel = {
+  label: string;
+  type: "credit" | "debit";
 };
 
-const todayInputValue = () => new Date().toISOString().split("T")[0] ?? "";
-
-const displayName = (
-  member: GroupMemberInfo | null,
-  fallback?: string | null,
-) => {
-  if (member?.name) return member.name;
-  if (member?.email) return member.email;
-  if (fallback) return fallback;
-  return "Unknown";
-};
-
-const displayNameFromUser = (
-  user:
-    | {
-        id: string;
-        name: string | null;
-        email: string | null;
-        image: string | null;
-      }
-    | null,
-) => {
-  if (user?.name) return user.name;
-  if (user?.email) return user.email;
-  return "Unknown";
-};
+type DetailSection =
+  | {
+      title: string;
+      rows: {
+        name: string;
+        hint?: string;
+        amount: number;
+        highlight?: boolean;
+      }[];
+    }
+  | null;
 
 export function GroupExpensesSection({
   groupId,
   currency,
   members,
   initialExpenses,
+  currentMember,
 }: Props) {
-  const initialRows = useMemo<MemberRow[]>(
+  const initialRows = useMemo(
     () =>
       members.map((member) => ({
         membershipId: member.membershipId,
@@ -128,29 +59,41 @@ export function GroupExpensesSection({
     [members],
   );
 
-  const [rows, setRows] = useState<MemberRow[]>(() => initialRows);
+  const [rows, setRows] = useState<MemberRow[]>(initialRows);
   const [description, setDescription] = useState("");
   const [totalAmount, setTotalAmount] = useState("");
   const [occurredAt, setOccurredAt] = useState(() => todayInputValue());
   const [expenses, setExpenses] = useState(initialExpenses);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [success, setSuccess] = useState<string | null>(null);
   const [editingExpenseId, setEditingExpenseId] = useState<string | null>(null);
+  const [splitMode, setSplitMode] = useState<SplitMode>("equal");
+  const [isFormOpen, setIsFormOpen] = useState(false);
+  const [detailExpense, setDetailExpense] = useState<ExpenseSummary | null>(null);
+  const [isPayerModalOpen, setIsPayerModalOpen] = useState(false);
+  const [deletingExpenseId, setDeletingExpenseId] = useState<string | null>(null);
+  const [listError, setListError] = useState<string | null>(null);
+  const [pendingDeleteExpense, setPendingDeleteExpense] = useState<ExpenseSummary | null>(null);
+
+  const sessionMemberId = currentMember?.membershipId ?? null;
+  const defaultPayerAppliedRef = useRef(false);
+  const payerBackupRef = useRef<MemberRow[] | null>(null);
 
   const totalAmountCents = parseCurrencyToCents(totalAmount) ?? 0;
+
+  const updateRowsWithDistribution = useCallback(
+    (updater: (rows: MemberRow[]) => MemberRow[]) => {
+      setRows((prevRows) => distributeAutoPaid(updater(prevRows), totalAmountCents));
+    },
+    [totalAmountCents],
+  );
+
   useEffect(() => {
-    setRows((prevRows) => {
-      const prevMap = new Map(
-        prevRows.map((row) => [row.membershipId, row]),
-      );
-      let needsSync = false;
-      const nextRows = members.map((member) => {
+    updateRowsWithDistribution((prevRows) => {
+      const prevMap = new Map(prevRows.map((row) => [row.membershipId, row]));
+      return members.map((member) => {
         const existing = prevMap.get(member.membershipId);
-        if (existing) {
-          return existing;
-        }
-        needsSync = true;
+        if (existing) return existing;
         return {
           membershipId: member.membershipId,
           paid: "",
@@ -159,38 +102,78 @@ export function GroupExpensesSection({
           autoPaid: true,
         };
       });
-
-      if (prevRows.length !== nextRows.length) {
-        needsSync = true;
-      }
-
-      const baseRows = needsSync ? nextRows : prevRows;
-      return distributeAutoPaid(baseRows, totalAmountCents);
     });
-  }, [members, totalAmountCents]);
+  }, [members, updateRowsWithDistribution]);
+
+  useEffect(() => {
+    if (editingExpenseId) {
+      defaultPayerAppliedRef.current = true;
+      return;
+    }
+    if (totalAmountCents === 0) {
+      defaultPayerAppliedRef.current = false;
+      return;
+    }
+    if (!sessionMemberId || defaultPayerAppliedRef.current) return;
+    setRows((prev) =>
+      prev.map((row) => {
+        if (row.membershipId === sessionMemberId) {
+          return {
+            ...row,
+            paid: (totalAmountCents / 100).toFixed(2),
+            autoPaid: false,
+          };
+        }
+        return {
+          ...row,
+          paid: "",
+          autoPaid: false,
+        };
+      }),
+    );
+    defaultPayerAppliedRef.current = true;
+  }, [totalAmountCents, editingExpenseId, sessionMemberId]);
+
+  useEffect(() => {
+    setRows((prevRows) => {
+      const manualRows = prevRows.filter((row) => !row.autoPaid && row.included);
+      if (manualRows.length !== 1) return prevRows;
+      const manualRow = manualRows[0];
+      const formatted = totalAmountCents > 0 ? (totalAmountCents / 100).toFixed(2) : "";
+      if (manualRow.paid === formatted) return prevRows;
+      return prevRows.map((row) =>
+        row.membershipId === manualRow.membershipId ? { ...row, paid: formatted } : row,
+      );
+    });
+  }, [totalAmountCents]);
+
+  const memberLookup = useMemo(
+    () => new Map(members.map((member) => [member.membershipId, member])),
+    [members],
+  );
+
   const totalPaidCents = rows.reduce((sum, row) => {
     const cents = parseCurrencyToCents(row.paid);
     return cents && cents > 0 ? sum + cents : sum;
   }, 0);
 
   const includedRows = rows.filter((row) => row.included);
+  const selectedCount = includedRows.length;
   const totalWeight = includedRows.reduce((sum, row) => {
     const weight = Number(row.weight);
     return Number.isFinite(weight) && weight > 0 ? sum + weight : sum;
   }, 0);
+  const perPersonCents = selectedCount > 0 ? Math.round(totalAmountCents / selectedCount) : 0;
+  const allSelected = rows.every((row) => row.included);
 
   const sharePreviewMap = useMemo(() => {
     const map = new Map<string, number>();
-    if (totalWeight <= 0 || totalAmountCents <= 0) {
-      return map;
-    }
+    if (totalWeight <= 0 || totalAmountCents <= 0) return map;
 
     let distributed = 0;
     includedRows.forEach((row, index) => {
       const weight = Number(row.weight);
-      if (!Number.isFinite(weight) || weight <= 0) {
-        return;
-      }
+      if (!Number.isFinite(weight) || weight <= 0) return;
       let amount = Math.round((weight / totalWeight) * totalAmountCents);
       if (index === includedRows.length - 1) {
         amount = totalAmountCents - distributed;
@@ -201,93 +184,157 @@ export function GroupExpensesSection({
     return map;
   }, [includedRows, totalAmountCents, totalWeight]);
 
+  const recentMembers = useMemo(() => {
+    const map = new Map(members.map((member) => [member.membershipId, member]));
+    const sorted = [...expenses].sort(
+      (a, b) => new Date(b.occurredAt).getTime() - new Date(a.occurredAt).getTime(),
+    );
+    const seen = new Set<string>();
+    const result: GroupMemberInfo[] = [];
+    for (const expense of sorted) {
+      const ids = new Set<string>();
+      expense.shares.forEach((share) => ids.add(share.membershipId));
+      expense.payers.forEach((payer) => ids.add(payer.membershipId));
+      ids.forEach((id) => {
+        if (seen.has(id)) return;
+        const member = map.get(id);
+        if (member) {
+          seen.add(id);
+          result.push(member);
+        }
+      });
+      if (result.length >= 6) break;
+    }
+    return result;
+  }, [expenses, members]);
+
+  const selectedPayerId = useMemo(() => {
+    const paidEntries = rows.map((row) => ({
+      membershipId: row.membershipId,
+      cents: parseCurrencyToCents(row.paid) ?? 0,
+    }));
+    const exact = paidEntries.find(
+      (entry) => entry.cents > 0 && entry.cents === totalAmountCents,
+    );
+    if (exact) return exact.membershipId;
+    const largest = paidEntries.reduce<{
+      membershipId: string;
+      cents: number;
+    } | null>((acc, entry) => {
+      if (!acc || entry.cents > acc.cents) return entry;
+      return acc;
+    }, null);
+    return largest && largest.cents > 0 ? largest.membershipId : null;
+  }, [rows, totalAmountCents]);
+
   const handleRowChange = (
     membershipId: string,
     key: "paid" | "weight" | "included",
     value: string | boolean,
   ) => {
-    setRows((prevRows) => {
-      const nextRows = prevRows.map((row) => {
-        if (row.membershipId !== membershipId) {
-          return row;
-        }
-
+    updateRowsWithDistribution((prevRows) =>
+      prevRows.map((row) => {
+        if (row.membershipId !== membershipId) return row;
         if (key === "paid") {
-          const stringValue = String(value);
-          const shouldAuto = stringValue.trim() === "";
           return {
             ...row,
-            paid: stringValue,
-            autoPaid: shouldAuto,
+            paid: String(value),
+            autoPaid: false,
           };
         }
-
-        if (key === "included") {
-          const included = Boolean(value);
-          return {
-            ...row,
-            included,
-            autoPaid: true,
-            paid: included ? row.paid : "",
-          };
-        }
-
         if (key === "weight") {
           return {
             ...row,
             weight: String(value),
           };
         }
-
-        return row;
-      });
-
-      return distributeAutoPaid(nextRows, totalAmountCents);
-    });
+        const included = Boolean(value);
+        return {
+          ...row,
+          included,
+          weight: splitMode === "equal" && included ? "1" : row.weight,
+          autoPaid: splitMode === "equal" ? true : row.autoPaid,
+          paid: included ? row.paid : "",
+        };
+      }),
+    );
   };
 
-  const resetForm = (options?: { clearMessages?: boolean }) => {
-    const { clearMessages = true } = options ?? {};
+  const toggleSelectAll = (select: boolean) => {
+    updateRowsWithDistribution((prev) =>
+      prev.map((row) => ({
+        ...row,
+        included: select,
+        weight: splitMode === "equal" && select ? "1" : row.weight,
+      })),
+    );
+  };
+
+  const quickIncludeMember = (membershipId: string) => {
+    updateRowsWithDistribution((prevRows) =>
+      prevRows.map((row) => {
+        if (row.membershipId !== membershipId) return row;
+        return {
+          ...row,
+          included: true,
+          weight: splitMode === "equal" ? "1" : row.weight.trim() || "1",
+        };
+      }),
+    );
+  };
+
+  const handleSplitModeChange = (mode: SplitMode) => {
+    setSplitMode(mode);
+    if (mode === "equal") {
+      updateRowsWithDistribution((prev) => prev.map((row) => ({ ...row, weight: "1" })));
+    }
+  };
+
+  const resetForm = () => {
     setDescription("");
     setTotalAmount("");
     setOccurredAt(todayInputValue());
-    setRows(
-      members.map((member) => ({
-        membershipId: member.membershipId,
-        paid: "",
-        weight: "1",
-        included: true,
-        autoPaid: true,
-      })),
-    );
+    setRows(initialRows);
     setEditingExpenseId(null);
-    if (clearMessages) {
-      setSuccess(null);
-      setError(null);
-    }
+    setSplitMode("equal");
+    setError(null);
+    defaultPayerAppliedRef.current = false;
+  };
+
+  const handleReset = () => {
+    resetForm();
+    setIsFormOpen(false);
   };
 
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     setIsSubmitting(true);
     setError(null);
-    setSuccess(null);
+
+    const normalizedRows = rows.map((row) => ({
+      ...row,
+      weight: splitMode === "equal" ? "1" : row.weight,
+    }));
+    const included = normalizedRows.filter((row) => row.included);
 
     try {
-      if (totalAmountCents <= 0) {
-        throw new Error("Enter a total greater than zero.");
-      }
-      if (!description.trim()) {
-        throw new Error("Add a short description for the expense.");
-      }
-      if (includedRows.length === 0) {
-        throw new Error("Include at least one participant in the split.");
-      }
-      if (totalWeight <= 0) {
+      if (totalAmountCents <= 0) throw new Error("Enter a total greater than zero.");
+      if (!description.trim()) throw new Error("Add a short description for the expense.");
+      if (included.length === 0) throw new Error("Include at least one participant in the split.");
+
+      const totalWeightNormalized = included.reduce((sum, row) => {
+        const weight = Number(row.weight);
+        return Number.isFinite(weight) && weight > 0 ? sum + weight : sum;
+      }, 0);
+      if (totalWeightNormalized <= 0) {
         throw new Error("Participant weights must total more than zero.");
       }
-      if (totalPaidCents !== totalAmountCents) {
-        throw new Error("Paid amounts must add up to the total.");
+      const totalPaidNormalized = normalizedRows.reduce((sum, row) => {
+        const cents = parseCurrencyToCents(row.paid);
+        return cents && cents > 0 ? sum + cents : sum;
+      }, 0);
+      if (Math.abs(totalPaidNormalized - totalAmountCents) > 1) {
+        throw new Error("Paid totals must match the total amount.");
       }
 
       const payload = {
@@ -295,23 +342,12 @@ export function GroupExpensesSection({
         totalAmount,
         currency,
         occurredAt,
-        payers: rows
-          .map((row) => ({
-            membershipId: row.membershipId,
-            amount: row.paid,
-          }))
-          .filter((payer) => {
-            const cents = parseCurrencyToCents(payer.amount);
-            return cents !== null && cents > 0;
-          }),
-        shares: includedRows
-          .map((row) => ({
-            membershipId: row.membershipId,
-            weight: Number(row.weight),
-          }))
-          .filter(
-            (share) => Number.isFinite(share.weight) && share.weight > 0,
-          ),
+        payers: normalizedRows
+          .map((row) => ({ membershipId: row.membershipId, amount: row.paid }))
+          .filter((payer) => parseCurrencyToCents(payer.amount) ?? 0),
+        shares: included
+          .map((row) => ({ membershipId: row.membershipId, weight: Number(row.weight) }))
+          .filter((share) => Number.isFinite(share.weight) && share.weight > 0),
       };
 
       const endpoint = editingExpenseId
@@ -321,12 +357,9 @@ export function GroupExpensesSection({
 
       const response = await fetch(endpoint, {
         method,
-        headers: {
-          "Content-Type": "application/json",
-        },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
       });
-
       if (!response.ok) {
         const payload = await response.json().catch(() => null);
         throw new Error(payload?.error ?? "Unable to save expense");
@@ -334,24 +367,13 @@ export function GroupExpensesSection({
 
       const saved: ExpenseSummary = await response.json();
       setExpenses((prev) => {
-        if (!editingExpenseId) {
-          return [saved, ...prev];
-        }
-        return prev.map((expense) =>
-          expense.id === editingExpenseId ? saved : expense,
-        );
+        if (!editingExpenseId) return [saved, ...prev];
+        return prev.map((expense) => (expense.id === editingExpenseId ? saved : expense));
       });
-      if (typeof window !== "undefined") {
-        window.dispatchEvent(
-          new CustomEvent("group:expenses-updated", {
-            detail: { groupId },
-          }),
-        );
-      }
-      setSuccess(
-        editingExpenseId ? "Expense updated successfully." : "Expense added successfully.",
-      );
-      resetForm({ clearMessages: false });
+      dispatchExpensesUpdated();
+
+      setIsFormOpen(false);
+      resetForm();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to save expense.");
     } finally {
@@ -359,101 +381,137 @@ export function GroupExpensesSection({
     }
   };
 
-  const memberLookup = useMemo(() => {
-    return new Map(members.map((member) => [member.membershipId, member]));
-  }, [members]);
-
-  const recentMembers = useMemo(() => {
-    const membershipMap = new Map(members.map((member) => [member.membershipId, member]));
-    const sortedExpenses = [...expenses].sort(
-      (a, b) => new Date(b.occurredAt).getTime() - new Date(a.occurredAt).getTime(),
-    );
-    const seen = new Set<string>();
-    const result: GroupMemberInfo[] = [];
-
-    for (const expense of sortedExpenses) {
-      const ids = new Set<string>();
-      expense.shares.forEach((share) => ids.add(share.membershipId));
-      expense.payers.forEach((payer) => ids.add(payer.membershipId));
-
-      ids.forEach((membershipId) => {
-        if (seen.has(membershipId)) return;
-        const member = membershipMap.get(membershipId);
-        if (member) {
-          seen.add(membershipId);
-          result.push(member);
-        }
-      });
-
-      if (result.length >= 6) break;
-    }
-
-    return result;
-  }, [expenses, members]);
-
-  const startEditing = (expense: ExpenseSummary) => {
-    setEditingExpenseId(expense.id);
-    setDescription(expense.description);
-    setTotalAmount((expense.totalAmountCents / 100).toFixed(2));
-    setOccurredAt(() => expense.occurredAt.split("T")[0] ?? todayInputValue());
-
-    const payerMap = new Map(
-      expense.payers.map((payer) => [payer.membershipId, payer.amountCents]),
-    );
-    const shareMap = new Map(
-      expense.shares.map((share) => [share.membershipId, share.weight]),
-    );
-
-    setRows(
-      members.map((member) => {
-        const payerAmount = payerMap.get(member.membershipId) ?? null;
-        const shareWeight = shareMap.get(member.membershipId) ?? null;
-        return {
-          membershipId: member.membershipId,
-          paid: payerAmount ? (payerAmount / 100).toFixed(2) : "",
-          weight: shareWeight ? String(shareWeight) : "1",
-          included: shareWeight !== null,
-          autoPaid: payerAmount === null,
-        };
-      }),
-    );
-    setSuccess(null);
-    setError(null);
-  };
-
-  const quickIncludeMember = (membershipId: string) => {
-    setRows((prevRows) => {
-      const next = prevRows.map((row) => {
-        if (row.membershipId !== membershipId) {
-          return row;
-        }
-        const weight = row.weight.trim() ? row.weight : "1";
-        return {
-          ...row,
-          included: true,
-          weight,
-        };
-      });
-
-      return distributeAutoPaid(next, totalAmountCents);
-    });
-  };
-
-  const [isFormOpen, setIsFormOpen] = useState(false);
-
   const openForm = (expense?: ExpenseSummary) => {
+    setDetailExpense(null);
     if (expense) {
-      startEditing(expense);
+      setEditingExpenseId(expense.id);
+      setDescription(expense.description);
+      setTotalAmount((expense.totalAmountCents / 100).toFixed(2));
+      setOccurredAt(() => expense.occurredAt.split("T")[0] ?? todayInputValue());
+
+      const payerMap = new Map(
+        expense.payers.map((payer) => [payer.membershipId, payer.amountCents]),
+      );
+      const shareMap = new Map(
+        expense.shares.map((share) => [share.membershipId, share.weight]),
+      );
+
+      setRows(
+        members.map((member) => {
+          const payerAmount = payerMap.get(member.membershipId) ?? null;
+          const shareWeight = shareMap.get(member.membershipId) ?? null;
+          return {
+            membershipId: member.membershipId,
+            paid: payerAmount ? (payerAmount / 100).toFixed(2) : "",
+            weight: shareWeight ? String(shareWeight) : "1",
+            included: shareWeight !== null,
+            autoPaid: payerAmount === null,
+          };
+        }),
+      );
+
+      const uniqueWeights = new Set(expense.shares.map((share) => share.weight.toFixed(4)));
+      setSplitMode(uniqueWeights.size === 1 && uniqueWeights.has("1.0000") ? "equal" : "weighted");
+      defaultPayerAppliedRef.current = true;
     } else {
       resetForm();
     }
     setIsFormOpen(true);
   };
 
-  const handleReset = () => {
-    resetForm();
-    setIsFormOpen(false);
+  const openDetail = (expense: ExpenseSummary) => {
+    setDetailExpense(expense);
   };
+
+  const closeDetail = () => {
+    setDetailExpense(null);
+  };
+
+  const startDeleteExpense = (expense: ExpenseSummary) => {
+    setListError(null);
+    setPendingDeleteExpense(expense);
+  };
+
+  const cancelDeleteExpense = () => {
+    if (deletingExpenseId) return;
+    setPendingDeleteExpense(null);
+  };
+
+  const confirmDeleteExpense = async () => {
+    if (!pendingDeleteExpense) return;
+
+    const expenseId = pendingDeleteExpense.id;
+    setListError(null);
+    setDeletingExpenseId(expenseId);
+    try {
+      const response = await fetch(`/api/groups/${groupId}/expenses/${expenseId}`, {
+        method: "DELETE",
+      });
+      if (!response.ok) {
+        const payload = await response.json().catch(() => null);
+        throw new Error(payload?.error ?? "Unable to delete expense.");
+      }
+
+      setExpenses((prev) => prev.filter((expense) => expense.id !== expenseId));
+      if (detailExpense?.id === expenseId) {
+        closeDetail();
+      }
+      if (editingExpenseId === expenseId) {
+        resetForm();
+        setIsFormOpen(false);
+      }
+      setPendingDeleteExpense(null);
+      dispatchExpensesUpdated();
+    } catch (err) {
+      setListError(err instanceof Error ? err.message : "Failed to delete expense.");
+    } finally {
+      setDeletingExpenseId(null);
+    }
+  };
+
+  const openPayerModal = () => {
+    payerBackupRef.current = rows.map((row) => ({ ...row }));
+    setIsPayerModalOpen(true);
+  };
+
+  const closePayerModal = (restore = false) => {
+    if (restore && payerBackupRef.current) {
+      setRows(payerBackupRef.current.map((row) => ({ ...row })));
+    }
+    setIsPayerModalOpen(false);
+    payerBackupRef.current = null;
+  };
+
+  const selectPayer = (membershipId: string) => {
+    const formattedTotal = totalAmountCents > 0 ? (totalAmountCents / 100).toFixed(2) : "";
+    defaultPayerAppliedRef.current = true;
+    updateRowsWithDistribution((prevRows) =>
+      prevRows.map((row) => {
+        if (row.membershipId === membershipId) {
+          return {
+            ...row,
+            paid: formattedTotal,
+            autoPaid: false,
+          };
+        }
+        return {
+          ...row,
+          paid: "",
+          autoPaid: true,
+        };
+      }),
+    );
+    closePayerModal(false);
+  };
+
+  const payerSummaryForForm = formatPayerSummaryFromRows(rows, memberLookup, sessionMemberId);
+  const dispatchExpensesUpdated = useCallback(() => {
+    window.dispatchEvent(
+      new CustomEvent("group:expenses-updated", {
+        detail: { groupId },
+      }),
+    );
+  }, [groupId]);
 
   return (
     <div className="flex flex-col gap-8">
@@ -473,75 +531,142 @@ export function GroupExpensesSection({
           Add expense
         </button>
       </div>
+
       <section className="rounded-xl border border-zinc-200 bg-white p-6 shadow-sm">
+        {listError ? <p className="mb-3 text-sm text-red-600">{listError}</p> : null}
         {expenses.length === 0 ? (
           <p className="text-sm text-zinc-600">
             No expenses yet. Click &ldquo;Add expense&rdquo; to log the first one.
           </p>
         ) : (
-          <ul className="space-y-4">
-            {expenses.map((expense) => (
-              <li
-                key={expense.id}
-                className="rounded-lg border border-zinc-200 bg-zinc-50 p-4"
-              >
-                <div className="flex flex-wrap items-center justify-between gap-2">
-                  <div>
-                    <h3 className="text-base font-semibold text-zinc-900">
-                      {expense.description}
-                    </h3>
-                    <p className="text-xs uppercase tracking-wide text-zinc-500">
-                      {new Date(expense.occurredAt).toLocaleDateString()}
-                    </p>
+          <ul className="space-y-3">
+            {expenses.map((expense) => {
+              const payerSummary = formatPayerSummary(expense, sessionMemberId);
+              const balance = formatBalanceText(
+                expense,
+                sessionMemberId,
+                currency,
+              );
+              const formattedDate = new Date(expense.occurredAt).toLocaleDateString();
+              return (
+                <li key={expense.id}>
+                  <div
+                    role="button"
+                    tabIndex={0}
+                    onClick={() => openDetail(expense)}
+                    onKeyDown={(event) => {
+                      if (event.target !== event.currentTarget) return;
+                      if (event.key === "Enter" || event.key === " ") {
+                        event.preventDefault();
+                        openDetail(expense);
+                      }
+                    }}
+                    className="flex w-full cursor-pointer flex-col gap-2 rounded-lg border border-zinc-200 bg-zinc-50 p-4 text-left transition hover:border-emerald-400 hover:shadow focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400"
+                  >
+                    <div className="flex items-start justify-between gap-4">
+                      <div>
+                        <p className="text-xs uppercase tracking-wide text-zinc-500">
+                          {formattedDate}
+                        </p>
+                        <h3 className="text-base font-semibold text-zinc-900">
+                          {expense.description}
+                        </h3>
+                        <p className="text-sm text-zinc-600">{payerSummary}</p>
+                      </div>
+                      <div className="flex flex-col items-end gap-2">
+                        <div className="text-right">
+                          <p className="text-base font-semibold text-emerald-700">
+                            {formatCurrency(expense.totalAmountCents, expense.currency)}
+                          </p>
+                          {balance ? (
+                            <p
+                              className={`text-xs font-semibold ${
+                                balance.type === "credit" ? "text-emerald-600" : "text-orange-600"
+                              }`}
+                            >
+                              {balance.label}
+                            </p>
+                          ) : null}
+                        </div>
+                        <button
+                          type="button"
+                          onClick={(event) => {
+                            event.stopPropagation();
+                            event.preventDefault();
+                            startDeleteExpense(expense);
+                          }}
+                          onKeyDown={(event) => event.stopPropagation()}
+                          disabled={deletingExpenseId === expense.id}
+                          className="rounded-md border border-zinc-200 px-3 py-1 text-xs font-semibold text-zinc-600 transition hover:bg-zinc-100 disabled:cursor-not-allowed disabled:opacity-60"
+                        >
+                          {deletingExpenseId === expense.id ? "Deleting..." : "Delete"}
+                        </button>
+                      </div>
+                    </div>
                   </div>
-                  <div className="flex items-center gap-3">
-                    <span className="text-base font-semibold text-emerald-700">
-                      {formatCurrency(expense.totalAmountCents, expense.currency)}
-                    </span>
-                    <button
-                      type="button"
-                      onClick={() => openForm(expense)}
-                      className="text-xs font-semibold uppercase tracking-wider text-emerald-600 underline underline-offset-4"
-                    >
-                      Edit
-                    </button>
-                  </div>
-                </div>
-                <div className="mt-3 grid gap-3 text-sm text-zinc-600 md:grid-cols-2">
-                  <div>
-                    <p className="font-semibold text-zinc-700">Paid by</p>
-                    <ul className="mt-1 space-y-1">
-                      {expense.payers.map((payer) => (
-                        <li key={payer.id} className="flex justify-between">
-                          <span>{displayNameFromUser(payer.user)}</span>
-                          <span>
-                            {formatCurrency(payer.amountCents, expense.currency)}
-                          </span>
-                        </li>
-                      ))}
-                    </ul>
-                  </div>
-                  <div>
-                    <p className="font-semibold text-zinc-700">Split</p>
-                    <ul className="mt-1 space-y-1">
-                      {expense.shares.map((share) => (
-                        <li key={share.id} className="flex justify-between">
-                          <span>
-                            {displayNameFromUser(share.user)} · weight {share.weight}
-                          </span>
-                          <span>
-                            {formatCurrency(share.amountCents, expense.currency)}
-                          </span>
-                        </li>
-                      ))}
-                    </ul>
-                  </div>
-                </div>
-              </li>
-            ))}
+                </li>
+              );
+            })}
           </ul>
         )}
       </section>
+
+      {detailExpense ? (
+        <div className="fixed inset-0 z-40 flex items-center justify-center bg-black/40 p-4">
+          <div className="h-full w-full max-w-3xl overflow-y-auto rounded-xl bg-white p-6 shadow-xl">
+            <div className="mb-4 flex items-center justify-between">
+              <div>
+                <p className="text-xs uppercase tracking-wide text-zinc-500">
+                  {new Date(detailExpense.occurredAt).toLocaleDateString()}
+                </p>
+                <h2 className="text-2xl font-semibold text-zinc-900">
+                  {detailExpense.description}
+                </h2>
+              </div>
+              <button
+                type="button"
+                onClick={closeDetail}
+                className="text-sm font-semibold text-zinc-500 transition hover:text-zinc-700"
+              >
+                Close
+              </button>
+            </div>
+
+            <div className="space-y-4">
+              <DetailSectionView
+                title="Who paid"
+                section={buildPayerSection(detailExpense)}
+                currency={currency}
+              />
+              <DetailSectionView
+                title="Split breakdown"
+                section={buildShareSection(detailExpense, sessionMemberId, currency)}
+                currency={currency}
+              />
+            </div>
+
+            <div className="mt-6 flex items-center gap-3">
+              <button
+                type="button"
+                onClick={() => {
+                  closeDetail();
+                  openForm(detailExpense);
+                }}
+                className="inline-flex items-center justify-center rounded-md bg-emerald-600 px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-emerald-500"
+              >
+                Edit expense
+              </button>
+              <button
+                type="button"
+                onClick={closeDetail}
+                className="inline-flex items-center justify-center rounded-md border border-zinc-300 px-4 py-2 text-sm font-semibold text-zinc-700 transition hover:bg-white"
+              >
+                Done
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
 
       {isFormOpen ? (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
@@ -559,27 +684,23 @@ export function GroupExpensesSection({
               </button>
             </div>
             <p className="mt-1 text-sm text-zinc-500">
-              Track who paid and how the cost should be split using per-person
-              weights.
+              Track who paid and how the cost should be split using per-person weights.
             </p>
+
             {recentMembers.length > 0 ? (
               <div className="mt-4 rounded-lg border border-dashed border-emerald-300 bg-emerald-50/50 p-4 text-sm">
-                <p className="mb-2 font-medium text-emerald-700">
-                  Quick add members from recent activity
-                </p>
+                <p className="mb-2 font-medium text-emerald-700">Quick add members from recent activity</p>
                 <div className="flex flex-wrap gap-2">
                   {recentMembers.map((member) => {
-                    const linkedRow = rows.find((row) => row.membershipId === member.membershipId);
-                    const active = linkedRow?.included ?? false;
+                    const row = rows.find((r) => r.membershipId === member.membershipId);
+                    const active = row?.included ?? false;
                     return (
                       <button
                         key={member.membershipId}
                         type="button"
                         onClick={() => quickIncludeMember(member.membershipId)}
                         className={`rounded-full px-3 py-1 text-xs font-semibold transition ${
-                          active
-                            ? "bg-emerald-600 text-white"
-                            : "border border-emerald-400 text-emerald-700 hover:bg-emerald-100"
+                          active ? "bg-emerald-600 text-white" : "border border-emerald-400 text-emerald-700 hover:bg-emerald-100"
                         }`}
                       >
                         {displayName(member)}
@@ -589,186 +710,536 @@ export function GroupExpensesSection({
                 </div>
               </div>
             ) : null}
+
             <form className="mt-5 grid gap-6" onSubmit={handleSubmit}>
-          <div className="grid gap-4 md:grid-cols-2">
-            <div>
-              <label
-                htmlFor="expense-description"
-                className="block text-xs font-semibold uppercase tracking-wider text-zinc-500"
-              >
-                Description
-              </label>
-              <input
-                id="expense-description"
-                value={description}
-                onChange={(event) => setDescription(event.target.value)}
-                placeholder="Dinner at La Piazza"
-                className="mt-2 w-full rounded-md border border-zinc-300 px-3 py-2 text-sm text-zinc-900 shadow-sm focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-200"
-                required
-              />
-            </div>
-            <div>
-              <label
-                htmlFor="expense-date"
-                className="block text-xs font-semibold uppercase tracking-wider text-zinc-500"
-              >
-                Date
-              </label>
-              <input
-                id="expense-date"
-                type="date"
-                value={occurredAt}
-                max={todayInputValue()}
-                onChange={(event) => setOccurredAt(event.target.value)}
-                className="mt-2 w-full rounded-md border border-zinc-300 px-3 py-2 text-sm text-zinc-900 shadow-sm focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-200"
-              />
-            </div>
-          </div>
-          <div className="grid gap-4 md:grid-cols-2">
-            <div>
-              <label
-                htmlFor="expense-total"
-                className="block text-xs font-semibold uppercase tracking-wider text-zinc-500"
-              >
-                Total amount ({currency})
-              </label>
-              <input
-                id="expense-total"
-                value={totalAmount}
-                onChange={(event) => setTotalAmount(event.target.value)}
-                placeholder="123.45"
-                className="mt-2 w-full rounded-md border border-zinc-300 px-3 py-2 text-sm text-zinc-900 shadow-sm focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-200"
-                required
-              />
-              <p className="mt-1 text-xs text-zinc-500">
-                Paid total: {formatCurrency(totalPaidCents, currency)}
-              </p>
-            </div>
-            <div className="rounded-lg border border-zinc-200 bg-zinc-50 p-3 text-sm text-zinc-600">
-              <p>
-                Splitting {formatCurrency(totalAmountCents, currency)} across
-                {" "}
-                {includedRows.length} participant
-                {includedRows.length === 1 ? "" : "s"} with weight total of
-                {" "}
-                {totalWeight || 0}.
-              </p>
-            </div>
-          </div>
+              <div className="grid gap-4 md:grid-cols-2">
+                <div>
+                  <label
+                    htmlFor="expense-description"
+                    className="block text-xs font-semibold uppercase tracking-wider text-zinc-500"
+                  >
+                    Description
+                  </label>
+                  <input
+                    id="expense-description"
+                    value={description}
+                    onChange={(event) => setDescription(event.target.value)}
+                    placeholder="Dinner at La Piazza"
+                    className="mt-2 w-full rounded-md border border-zinc-300 px-3 py-2 text-sm text-zinc-900 shadow-sm focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-200"
+                    required
+                  />
+                </div>
+                <div>
+                  <label
+                    htmlFor="expense-date"
+                    className="block text-xs font-semibold uppercase tracking-wider text-zinc-500"
+                  >
+                    Date
+                  </label>
+                  <input
+                    id="expense-date"
+                    type="date"
+                    value={occurredAt}
+                    max={todayInputValue()}
+                    onChange={(event) => setOccurredAt(event.target.value)}
+                    className="mt-2 w-full rounded-md border border-zinc-300 px-3 py-2 text-sm text-zinc-900 shadow-sm focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-200"
+                  />
+                </div>
+              </div>
 
-          <div className="overflow-x-auto rounded-xl border border-zinc-200">
-            <table className="min-w-full divide-y divide-zinc-200 text-sm">
-              <thead className="bg-zinc-50">
-                <tr className="text-left text-xs font-semibold uppercase tracking-wider text-zinc-500">
-                  <th className="px-4 py-3">Include</th>
-                  <th className="px-4 py-3">Member</th>
-                  <th className="px-4 py-3">Paid ({currency})</th>
-                  <th className="px-4 py-3">Weight</th>
-                  <th className="px-4 py-3">Share preview</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-zinc-200 bg-white">
-                {rows.map((row) => {
-                  const member = memberLookup.get(row.membershipId) ?? null;
-                  const shareAmount = sharePreviewMap.get(row.membershipId) ?? 0;
-                  return (
-                    <tr key={row.membershipId}>
-                      <td className="px-4 py-3">
-                        <input
-                          type="checkbox"
-                          checked={row.included}
-                          onChange={(event) =>
-                            handleRowChange(
-                              row.membershipId,
-                              "included",
-                              event.target.checked,
-                            )
-                          }
-                        />
-                      </td>
-                      <td className="px-4 py-3">
-                        <div className="flex flex-col">
-                          <span className="font-medium text-zinc-900">
+              <div className="grid gap-4 md:grid-cols-2">
+                <div>
+                  <label
+                    htmlFor="expense-total"
+                    className="block text-xs font-semibold uppercase tracking-wider text-zinc-500"
+                  >
+                    Total amount ({currency})
+                  </label>
+                  <input
+                    id="expense-total"
+                    value={totalAmount}
+                    onChange={(event) => setTotalAmount(event.target.value)}
+                    placeholder="123.45"
+                    className="mt-2 w-full rounded-md border border-zinc-300 px-3 py-2 text-sm text-zinc-900 shadow-sm focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-200"
+                    required
+                  />
+                  <p className="mt-1 text-xs text-zinc-500">
+                    Paid total: {formatCurrency(totalPaidCents, currency)}
+                  </p>
+                </div>
+                <div className="rounded-lg border border-zinc-200 bg-zinc-50 p-3 text-sm text-zinc-600">
+                  <p>
+                    Splitting {formatCurrency(totalAmountCents, currency)} across {selectedCount} participant
+                    {selectedCount === 1 ? "" : "s"}.
+                  </p>
+                </div>
+              </div>
+
+              <div className="rounded-lg border border-zinc-200 bg-zinc-50 p-4">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm font-semibold text-zinc-700">Who paid?</p>
+                    <p className="text-sm text-zinc-600">{payerSummaryForForm}</p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={openPayerModal}
+                    className="rounded-md border border-zinc-300 px-3 py-1 text-sm font-semibold text-emerald-600 transition hover:bg-emerald-50"
+                  >
+                    Change
+                  </button>
+                </div>
+                <p className="mt-2 text-xs text-zinc-500">
+                  Totals must equal {formatCurrency(totalAmountCents, currency)}.
+                </p>
+              </div>
+
+              <div className="border-b border-zinc-200 pb-3">
+                <div className="flex items-center justify-between">
+                  <div className="flex gap-2">
+                    {[
+                      { key: "equal", label: "Split equally" },
+                      { key: "weighted", label: "Weighted split" },
+                    ].map((tab) => (
+                      <button
+                        key={tab.key}
+                        type="button"
+                        onClick={() => handleSplitModeChange(tab.key as SplitMode)}
+                        className={`rounded-md px-3 py-1 text-sm font-semibold transition ${
+                          splitMode === tab.key
+                            ? "bg-emerald-600 text-white"
+                            : "border border-zinc-300 text-zinc-600 hover:bg-zinc-100"
+                        }`}
+                      >
+                        {tab.label}
+                      </button>
+                    ))}
+                  </div>
+                  {splitMode === "equal" ? (
+                    <button
+                      type="button"
+                      onClick={() => toggleSelectAll(!allSelected)}
+                      className="rounded-md border border-zinc-300 px-3 py-1 text-xs font-semibold text-zinc-600 transition hover:bg-zinc-100"
+                    >
+                      {allSelected ? "Deselect all" : "Select all"}
+                    </button>
+                  ) : null}
+                </div>
+                <p className="mt-2 text-sm text-zinc-500">
+                  {splitMode === "equal"
+                    ? "Select which people owe an equal share."
+                    : "Set custom weights for each participant."}
+                </p>
+              </div>
+
+              {splitMode === "equal" ? (
+                <div className="mt-3 space-y-2">
+                  <ul className="divide-y divide-zinc-200 rounded-lg border border-zinc-200">
+                    {rows.map((row) => {
+                      const member = memberLookup.get(row.membershipId) ?? null;
+                      const active = row.included;
+                      const initials =
+                        member?.name?.[0]?.toUpperCase() ?? member?.email?.[0]?.toUpperCase() ?? "?";
+                      const shareAmount = sharePreviewMap.get(row.membershipId) ?? 0;
+                      return (
+                        <li key={row.membershipId} className="flex items-center justify-between px-4 py-3">
+                          <button
+                            type="button"
+                            onClick={() =>
+                              handleRowChange(row.membershipId, "included", !row.included)
+                            }
+                            className="flex flex-1 items-center gap-3 text-left"
+                          >
+                            <span
+                              className={`flex h-9 w-9 items-center justify-center rounded-full text-sm font-semibold text-white ${
+                                active ? "bg-emerald-500" : "bg-zinc-300"
+                              }`}
+                            >
+                              {initials}
+                            </span>
+                            <div className="flex flex-col">
+                              <span className="font-medium text-zinc-900">
+                                {displayName(member)}
+                              </span>
+                              {active && totalAmountCents > 0 ? (
+                                <span className="text-xs text-zinc-500">
+                                  {formatCurrency(shareAmount, currency)}
+                                </span>
+                              ) : null}
+                            </div>
+                          </button>
+                          <input
+                            type="checkbox"
+                            checked={row.included}
+                            onChange={(event) =>
+                              handleRowChange(row.membershipId, "included", event.target.checked)
+                            }
+                            className="h-5 w-5"
+                          />
+                        </li>
+                      );
+                    })}
+                  </ul>
+                  <div className="mt-3 flex items-center justify-between rounded-md border border-zinc-200 bg-zinc-50 px-4 py-2 text-sm text-emerald-700">
+                    <span>{formatCurrency(perPersonCents, currency)} / person</span>
+                    <span>
+                      {selectedCount} {selectedCount === 1 ? "person" : "people"}
+                    </span>
+                  </div>
+                </div>
+              ) : (
+                <div className="mt-3 space-y-3">
+                  {rows.map((row) => {
+                    const member = memberLookup.get(row.membershipId) ?? null;
+                    const shareAmount = sharePreviewMap.get(row.membershipId) ?? 0;
+                    return (
+                      <div key={row.membershipId} className="rounded-lg border border-zinc-200 p-3">
+                        <div className="flex items-center justify-between gap-3">
+                          <label className="flex items-center gap-3 text-sm font-medium text-zinc-900">
+                            <input
+                              type="checkbox"
+                              checked={row.included}
+                              onChange={(event) =>
+                                handleRowChange(row.membershipId, "included", event.target.checked)
+                              }
+                              className="h-4 w-4"
+                            />
                             {displayName(member)}
-                          </span>
-                          <span className="text-xs uppercase text-zinc-500">
-                            {member?.role.toLowerCase()}
-                          </span>
+                          </label>
+                          <input
+                            type="number"
+                            min="0"
+                            step="0.1"
+                            value={row.weight}
+                            onChange={(event) =>
+                              handleRowChange(row.membershipId, "weight", event.target.value)
+                            }
+                            disabled={!row.included}
+                            className="w-20 rounded-md border border-zinc-300 px-2 py-1 text-sm text-zinc-900 focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-200 disabled:opacity-60"
+                          />
                         </div>
-                      </td>
-                      <td className="px-4 py-3">
-                        <input
-                          type="text"
-                          value={row.paid}
-                          inputMode="decimal"
-                          onChange={(event) =>
-                            handleRowChange(
-                              row.membershipId,
-                              "paid",
-                              event.target.value,
-                            )
-                          }
-                          className="w-full rounded-md border border-zinc-300 px-3 py-2 text-sm text-zinc-900 shadow-sm focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-200"
-                        />
-                      </td>
-                      <td className="px-4 py-3">
-                        <input
-                          type="number"
-                          min="0"
-                          step="0.1"
-                          value={row.weight}
-                          onChange={(event) =>
-                            handleRowChange(
-                              row.membershipId,
-                              "weight",
-                              event.target.value,
-                            )
-                          }
-                          className="w-full rounded-md border border-zinc-300 px-3 py-2 text-sm text-zinc-900 shadow-sm focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-200"
-                        />
-                      </td>
-                      <td className="px-4 py-3 text-zinc-600">
-                        {row.included && totalAmountCents > 0 && totalWeight > 0
-                          ? formatCurrency(shareAmount, currency)
-                          : "—"}
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
+                        <p className="mt-2 text-xs text-zinc-500">
+                          {row.included && totalAmountCents > 0 && totalWeight > 0
+                            ? `Share: ${formatCurrency(shareAmount, currency)}`
+                            : "Not included in split"}
+                        </p>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
 
-          {error ? <p className="text-sm text-red-600">{error}</p> : null}
-          {success ? (
-            <p className="text-sm text-emerald-600">{success}</p>
-          ) : null}
+              {error ? <p className="text-sm text-red-600">{error}</p> : null}
 
-          <div className="flex flex-wrap items-center gap-3">
-            <button
-              type="submit"
-              className="inline-flex items-center justify-center rounded-md bg-emerald-600 px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-emerald-500 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-500 disabled:cursor-not-allowed disabled:opacity-70"
-              disabled={isSubmitting}
-            >
-              {isSubmitting
-                ? "Saving..."
-                : editingExpenseId
-                ? "Update expense"
-                : "Save expense"}
-            </button>
-            <button
-              type="button"
-              className="inline-flex items-center justify-center rounded-md border border-zinc-300 px-4 py-2 text-sm font-semibold text-zinc-700 transition hover:bg-white disabled:cursor-not-allowed disabled:opacity-60"
-              onClick={() => resetForm()}
-              disabled={isSubmitting}
-            >
-              Reset
-            </button>
-          </div>
+              <div className="flex flex-wrap items-center gap-3">
+                <button
+                  type="submit"
+                  className="inline-flex items-center justify-center rounded-md bg-emerald-600 px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-emerald-500 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-500 disabled:cursor-not-allowed disabled:opacity-70"
+                  disabled={isSubmitting}
+                >
+                  {isSubmitting
+                    ? "Saving..."
+                    : editingExpenseId
+                    ? "Update expense"
+                    : "Save expense"}
+                </button>
+                <button
+                  type="button"
+                  className="inline-flex items-center justify-center rounded-md border border-zinc-300 px-4 py-2 text-sm font-semibold text-zinc-700 transition hover:bg-white disabled:cursor-not-allowed disabled:opacity-60"
+                  onClick={handleReset}
+                  disabled={isSubmitting}
+                >
+                  Cancel
+                </button>
+              </div>
             </form>
           </div>
         </div>
       ) : null}
+
+      {isPayerModalOpen ? (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+          <div className="h-full w-full max-w-lg overflow-y-auto rounded-xl bg-white p-6 shadow-xl">
+            <div className="mb-4 flex items-center justify-between">
+              <h2 className="text-lg font-semibold text-zinc-900">Select payer</h2>
+              <button
+                type="button"
+                onClick={() => closePayerModal(true)}
+                className="text-sm font-semibold text-zinc-500 transition hover:text-zinc-700"
+              >
+                Cancel
+              </button>
+            </div>
+
+            <div className="space-y-3">
+              {rows.map((row) => {
+                const member = memberLookup.get(row.membershipId) ?? null;
+                const isSelected = row.membershipId === selectedPayerId;
+                return (
+                  <button
+                    key={row.membershipId}
+                    type="button"
+                    onClick={() => selectPayer(row.membershipId)}
+                    className={`flex w-full items-center justify-between rounded-lg border px-4 py-3 text-left transition ${
+                      isSelected
+                        ? "border-emerald-500 bg-emerald-50"
+                        : "border-zinc-200 bg-white hover:border-emerald-400"
+                    }`}
+                  >
+                    <div className="flex flex-col">
+                      <span className="text-sm font-semibold text-zinc-900">
+                        {displayName(member)}
+                      </span>
+                      {totalAmountCents > 0 ? (
+                        <span className="text-xs text-zinc-500">
+                          Pays {formatCurrency(totalAmountCents, currency)}
+                        </span>
+                      ) : null}
+                    </div>
+                    <span
+                      className={`rounded-full px-2 py-1 text-xs font-semibold ${
+                        isSelected ? "bg-emerald-100 text-emerald-700" : "bg-zinc-100 text-zinc-600"
+                      }`}
+                    >
+                      {isSelected ? "Selected" : "Select"}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        </div>
+      ) : null}
+
+      {pendingDeleteExpense ? (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50 p-4">
+          <div className="w-full max-w-md rounded-xl bg-white p-6 shadow-xl">
+            <h2 className="text-lg font-semibold text-zinc-900">Delete expense</h2>
+            <p className="mt-2 text-sm text-zinc-600">
+              Are you sure you want to delete{" "}
+              <span className="font-semibold text-zinc-900">
+                {pendingDeleteExpense.description}
+              </span>{" "}
+              for{" "}
+              <span className="font-semibold text-zinc-900">
+                {formatCurrency(
+                  pendingDeleteExpense.totalAmountCents,
+                  pendingDeleteExpense.currency,
+                )}
+              </span>
+              ? This action cannot be undone.
+            </p>
+            {listError ? <p className="mt-3 text-sm text-red-600">{listError}</p> : null}
+            <div className="mt-6 flex items-center justify-end gap-3">
+              <button
+                type="button"
+                onClick={cancelDeleteExpense}
+                disabled={deletingExpenseId === pendingDeleteExpense.id}
+                className="rounded-md border border-zinc-300 px-3 py-1.5 text-sm font-semibold text-zinc-600 transition hover:bg-zinc-100 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={() => void confirmDeleteExpense()}
+                disabled={deletingExpenseId === pendingDeleteExpense.id}
+                className="rounded-md bg-red-600 px-3 py-1.5 text-sm font-semibold text-white shadow-sm transition hover:bg-red-500 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                {deletingExpenseId === pendingDeleteExpense.id ? "Deleting..." : "Delete"}
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
     </div>
+  );
+}
+
+const todayInputValue = () => new Date().toISOString().split("T")[0] ?? "";
+
+const displayName = (member: GroupMemberInfo | null) => {
+  if (member?.name) return member.name;
+  if (member?.email) return member.email;
+  return "Unknown";
+};
+
+const displayNameFromUser = (
+  user:
+    | {
+        id: string;
+        name: string | null;
+        email: string | null;
+        image: string | null;
+      }
+    | null,
+) => {
+  if (user?.name) return user.name;
+  if (user?.email) return user.email;
+  return "Unknown";
+};
+
+const distributeAutoPaid = (
+  rows: MemberRow[],
+  totalAmountCents: number,
+): MemberRow[] => {
+  let next: MemberRow[] | null = null;
+
+  const setPaid = (index: number, value: string) => {
+    if (next) {
+      next[index].paid = value;
+      return;
+    }
+    if (rows[index].paid === value) return;
+    next = rows.map((row) => ({ ...row }));
+    next[index].paid = value;
+  };
+
+  const manualPaidCents = rows.reduce((sum, row) => {
+    if (!row.included || row.autoPaid) return sum;
+    const cents = parseCurrencyToCents(row.paid);
+    if (!cents || cents <= 0) return sum;
+    return sum + cents;
+  }, 0);
+
+  const amountToDistribute = totalAmountCents - manualPaidCents;
+  const autoEntries = rows
+    .map((row, idx) => ({ row, idx }))
+    .filter(({ row }) => row.included && row.autoPaid);
+
+  rows.forEach((row, idx) => {
+    if (!row.included || amountToDistribute <= 0) {
+      if (row.autoPaid && row.paid !== "") setPaid(idx, "");
+    }
+  });
+
+  if (amountToDistribute <= 0 || autoEntries.length === 0) return next ?? rows;
+
+  const distributable = Math.max(0, amountToDistribute);
+  const base = Math.floor(distributable / autoEntries.length);
+  let remainder = distributable - base * autoEntries.length;
+
+  autoEntries.forEach(({ idx }) => {
+    let amount = base;
+    if (remainder > 0) {
+      amount += 1;
+      remainder -= 1;
+    }
+    const formatted = amount > 0 ? (amount / 100).toFixed(2) : "";
+    setPaid(idx, formatted);
+  });
+
+  return next ?? rows;
+};
+
+const formatPayerSummary = (expense: ExpenseSummary, sessionMemberId: string | null) => {
+  if (expense.payers.length === 0) return "No payer recorded";
+  const parts = expense.payers.map((payer) => {
+    const name =
+      sessionMemberId && payer.membershipId === sessionMemberId
+        ? "You"
+        : displayNameFromUser(payer.user);
+    return `${name} paid ${formatCurrency(payer.amountCents, expense.currency)}`;
+  });
+  return parts.join(", ");
+};
+
+const formatBalanceText = (
+  expense: ExpenseSummary,
+  membershipId: string | null,
+  currency: string,
+): BalanceLabel | null => {
+  if (!membershipId) return null;
+  const paid = expense.payers
+    .filter((payer) => payer.membershipId === membershipId)
+    .reduce((sum, payer) => sum + payer.amountCents, 0);
+  const share =
+    expense.shares.find((share) => share.membershipId === membershipId)?.amountCents ?? 0;
+  const net = paid - share;
+  if (net > 0) return { type: "credit", label: `You lent ${formatCurrency(net, currency)}` };
+  if (net < 0)
+    return { type: "debit", label: `You owe ${formatCurrency(Math.abs(net), currency)}` };
+  return null;
+};
+
+const buildPayerSection = (expense: ExpenseSummary): DetailSection => ({
+  title: "Who paid",
+  rows: expense.payers.map((payer) => ({
+    name: displayNameFromUser(payer.user),
+    amount: payer.amountCents,
+  })),
+});
+
+const buildShareSection = (
+  expense: ExpenseSummary,
+  membershipId: string | null,
+  currency: string,
+): DetailSection => ({
+  title: "Split breakdown",
+  rows: expense.shares.map((share) => {
+    const balance =
+      membershipId && share.membershipId === membershipId
+        ? formatBalanceText(expense, membershipId, currency)
+        : null;
+    return {
+      name: displayNameFromUser(share.user),
+      hint: balance?.label,
+      amount: share.amountCents,
+      highlight: membershipId === share.membershipId,
+    };
+  }),
+});
+
+const formatPayerSummaryFromRows = (
+  rows: MemberRow[],
+  memberLookup: Map<string, GroupMemberInfo>,
+  sessionMemberId: string | null,
+) => {
+  const active = rows.filter((row) => (parseCurrencyToCents(row.paid) ?? 0) > 0);
+  if (active.length === 0) return "Paid by you";
+  const names = active.map((row) => {
+    if (row.membershipId === sessionMemberId) return "you";
+    const member = memberLookup.get(row.membershipId) ?? null;
+    return displayName(member);
+  });
+  if (names.length === 1) return `Paid by ${names[0]}`;
+  if (names.length === 2) return `Paid by ${names[0]} & ${names[1]}`;
+  return `Paid by ${names[0]} +${names.length - 1}`;
+};
+
+function DetailSectionView({
+  title,
+  section,
+  currency,
+}: {
+  title: string;
+  section: DetailSection;
+  currency: string;
+}) {
+  if (!section || section.rows.length === 0) return null;
+  return (
+    <section>
+      <p className="text-sm font-semibold text-zinc-700">{title}</p>
+      <ul className="mt-2 space-y-2">
+        {section.rows.map((row, index) => (
+          <li
+            key={`${row.name}-${index}`}
+            className={`flex items-center justify-between rounded-lg border border-zinc-200 px-4 py-2 text-sm ${
+              row.highlight ? "bg-emerald-50" : "bg-white"
+            }`}
+          >
+            <div className="flex flex-col">
+              <span className="font-medium text-zinc-900">
+                {row.name}
+                {row.highlight ? " (you)" : ""}
+              </span>
+              {row.hint ? <span className="text-xs text-zinc-500">{row.hint}</span> : null}
+            </div>
+            <span className="font-semibold text-zinc-700">
+              {formatCurrency(row.amount, currency)}
+            </span>
+          </li>
+        ))}
+      </ul>
+    </section>
   );
 }

@@ -12,6 +12,7 @@ type Props = {
   currency: string;
   balances: BalanceEntry[];
   settlements: SettlementSuggestion[];
+  currentMemberId: string | null;
 };
 
 const nameFor = (member: BalanceEntry["member"]) => {
@@ -29,6 +30,7 @@ export function GroupSettlementsPanel({
   currency,
   balances,
   settlements,
+  currentMemberId,
 }: Props) {
   const [copyStatus, setCopyStatus] = useState<"idle" | "copied" | "error">(
     "idle",
@@ -191,30 +193,36 @@ export function GroupSettlementsPanel({
             </p>
           ) : (
             <ol className="mt-2 space-y-2 text-sm text-zinc-700">
-              {ledgerSettlements.map((settlement, index) => (
-                <li
-                  key={`${settlement.fromMembershipId}-${settlement.toMembershipId}-${index}`}
-                >
-                  <div className="flex flex-wrap items-center justify-between gap-3">
-                    <span>
-                      {nameFor(settlement.fromMember)} pays {nameFor(settlement.toMember)}
-                    </span>
-                    <div className="flex items-center gap-2">
-                      <span className="font-semibold text-emerald-600">
-                        {formatCurrency(settlement.amountCents, currency)}
+              {ledgerSettlements.map((settlement, index) => {
+                const actionLabel =
+                  currentMemberId && settlement.toMembershipId === currentMemberId
+                    ? "Request"
+                    : "Pay";
+                return (
+                  <li
+                    key={`${settlement.fromMembershipId}-${settlement.toMembershipId}-${index}`}
+                  >
+                    <div className="flex flex-wrap items-center justify-between gap-3">
+                      <span>
+                        {nameFor(settlement.fromMember)} pays {nameFor(settlement.toMember)}
                       </span>
-                      <a
-                        href={venmoHref(settlement)}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="rounded-md border border-emerald-400 px-3 py-1 text-xs font-semibold uppercase tracking-wider text-emerald-600 transition hover:bg-emerald-50"
-                      >
-                        Pay
-                      </a>
+                      <div className="flex items-center gap-2">
+                        <span className="font-semibold text-emerald-600">
+                          {formatCurrency(settlement.amountCents, currency)}
+                        </span>
+                        <a
+                          href={venmoHref(settlement)}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="rounded-md border border-emerald-400 px-3 py-1 text-xs font-semibold uppercase tracking-wider text-emerald-600 transition hover:bg-emerald-50"
+                        >
+                          {actionLabel}
+                        </a>
+                      </div>
                     </div>
-                  </div>
-                </li>
-              ))}
+                  </li>
+                );
+              })}
             </ol>
           )}
         </div>

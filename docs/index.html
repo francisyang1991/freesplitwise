@@ -1,0 +1,204 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>FreeSplitwise · Group expenses made simple</title>
+    <style>
+      :root {
+        color-scheme: light;
+        --emerald-600: #059669;
+        --emerald-500: #10b981;
+        --emerald-50: #ecfdf5;
+        --zinc-50: #fafafa;
+        --zinc-100: #f4f4f5;
+        --zinc-200: #e4e4e7;
+        --zinc-500: #71717a;
+        --zinc-600: #52525b;
+        --zinc-700: #3f3f46;
+        --zinc-900: #18181b;
+        font-family: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      body {
+        margin: 0;
+        background: var(--zinc-50);
+        color: var(--zinc-900);
+      }
+
+      header {
+        padding: 2.5rem 1.5rem 1rem;
+        text-align: center;
+      }
+
+      header span {
+        display: inline-block;
+        margin-bottom: 0.5rem;
+        font-size: 0.75rem;
+        font-weight: 700;
+        letter-spacing: 0.2em;
+        text-transform: uppercase;
+        color: var(--emerald-600);
+      }
+
+      header h1 {
+        margin: 0;
+        font-size: clamp(2.5rem, 4vw + 1rem, 3.5rem);
+        font-weight: 700;
+      }
+
+      header p {
+        margin: 1rem auto 0;
+        max-width: 34rem;
+        font-size: 1.05rem;
+        color: var(--zinc-600);
+      }
+
+      .buttons {
+        margin-top: 1.5rem;
+        display: flex;
+        justify-content: center;
+        flex-wrap: wrap;
+        gap: 0.75rem;
+      }
+
+      .button {
+        padding: 0.75rem 1.75rem;
+        border-radius: 0.75rem;
+        font-weight: 600;
+        font-size: 1rem;
+        text-decoration: none;
+        transition: transform 0.15s ease, box-shadow 0.15s ease,
+          background-color 0.15s ease, color 0.15s ease;
+      }
+
+      .button.primary {
+        background: var(--emerald-600);
+        color: #fff;
+        box-shadow: 0 10px 20px -12px rgba(16, 185, 129, 0.6);
+      }
+
+      .button.primary:hover {
+        background: var(--emerald-500);
+        transform: translateY(-1px);
+      }
+
+      .button.secondary {
+        border: 1px solid var(--zinc-200);
+        color: var(--zinc-700);
+        background: #fff;
+      }
+
+      .button.secondary:hover {
+        border-color: var(--emerald-500);
+        color: var(--emerald-600);
+      }
+
+      main {
+        padding: 0 1.5rem 3.5rem;
+        max-width: 70rem;
+        margin: 0 auto;
+      }
+
+      .features {
+        margin-top: 2.5rem;
+        display: grid;
+        gap: 1.5rem;
+      }
+
+      @media (min-width: 48rem) {
+        .features {
+          grid-template-columns: repeat(3, minmax(0, 1fr));
+        }
+      }
+
+      .card {
+        background: #fff;
+        border-radius: 1.25rem;
+        border: 1px solid var(--zinc-200);
+        box-shadow: 0 10px 30px -24px rgba(15, 23, 42, 0.4);
+        padding: 1.5rem;
+      }
+
+      .card h3 {
+        margin: 0;
+        font-size: 1.125rem;
+        font-weight: 600;
+      }
+
+      .card p {
+        margin-top: 0.75rem;
+        line-height: 1.6;
+        color: var(--zinc-600);
+      }
+
+      footer {
+        padding: 2rem 1.5rem 3rem;
+        text-align: center;
+        font-size: 0.85rem;
+        color: var(--zinc-500);
+      }
+    </style>
+  </head>
+  <body>
+    <header>
+      <span>Free, forever</span>
+      <h1>FreeSplitwise</h1>
+      <p>
+        Split group expenses, weight shares per person, and settle up with minimal payments.
+        This static page is published via GitHub Pages—host the full Next.js app on an environment
+        that supports server-side code to unlock authentication, live expense syncing, and more.
+      </p>
+      <div class="buttons">
+        <a
+          class="button primary"
+          href="https://github.com/francisyang/freesplitwise"
+          target="_blank"
+          rel="noopener noreferrer"
+        >
+          View Repository
+        </a>
+        <a class="button secondary" href="#features">Explore features</a>
+      </div>
+    </header>
+
+    <main>
+      <section id="features" class="features">
+        <article class="card">
+          <h3>Flexible expense splits</h3>
+          <p>
+            Log expenses that multiple friends pay for and adjust share weights individually to make
+            things fair for every situation.
+          </p>
+        </article>
+        <article class="card">
+          <h3>Balances that stay in sync</h3>
+          <p>
+            The main app runs on Next.js with server-side APIs, keeping group balances fresh without
+            manual spreadsheets or messages.
+          </p>
+        </article>
+        <article class="card">
+          <h3>Minimal settlement suggestions</h3>
+          <p>
+            When it is time to settle up, FreeSplitwise suggests the smallest number of transfers so
+            everyone can square up quickly.
+          </p>
+        </article>
+      </section>
+    </main>
+
+    <footer>
+      ©
+      <script>
+        document.write(new Date().getFullYear());
+      </script>
+      FreeSplitwise · Built with Next.js and Prisma. Deploy the full app to Vercel, Netlify, or
+      another platform with serverless support.
+    </footer>
+  </body>
+</html>
