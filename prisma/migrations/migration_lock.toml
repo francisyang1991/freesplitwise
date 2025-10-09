@@ -1,0 +1,2 @@
+# This file keeps track of the migrations that have been applied to your database.
+provider = "postgresql"
