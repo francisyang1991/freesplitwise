@@ -37,13 +37,9 @@ export async function GET() {
     },
   });
 
-  const membershipRecords = groups
-    .map((group) =>
-      group.memberships.find((membership) => membership.userId === session.user.id),
-    )
-    .filter((membership): membership is { id: string; userId: string; role: string } =>
-      Boolean(membership?.id),
-    );
+  const membershipRecords = groups.flatMap((group) =>
+    group.memberships.filter((membership) => membership.userId === session.user.id),
+  );
 
   const netMap = await getMembershipNetBalances(
     membershipRecords.map((membership) => membership.id),

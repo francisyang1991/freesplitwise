@@ -31,13 +31,9 @@ export default async function DashboardPage() {
     },
   });
 
-  const userMemberships = groups
-    .map((group) =>
-      group.memberships.find((membership) => membership.userId === session.user.id),
-    )
-    .filter((membership): membership is { id: string; userId: string; role: string } =>
-      Boolean(membership?.id),
-    );
+  const userMemberships = groups.flatMap((group) =>
+    group.memberships.filter((membership) => membership.userId === session.user.id),
+  );
 
   const netMap = await getMembershipNetBalances(
     userMemberships.map((membership) => membership.id),
