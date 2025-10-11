@@ -3,6 +3,7 @@ import type { NextAuthOptions } from "next-auth";
 import type { Adapter } from "next-auth/adapters";
 import GoogleProvider from "next-auth/providers/google";
 import { getServerSession } from "next-auth";
+import { APP_URL } from "@/lib/env";
 import { prisma } from "@/lib/prisma";
 
 export const authOptions: NextAuthOptions = {
@@ -20,6 +21,15 @@ export const authOptions: NextAuthOptions = {
     signIn: "/signin",
   },
   callbacks: {
+    async redirect({ url }) {
+      if (url.startsWith("/")) {
+        return `${APP_URL}${url}`;
+      }
+      if (url.startsWith(APP_URL)) {
+        return url;
+      }
+      return APP_URL;
+    },
     async signIn({ user }) {
       const adminEmails = process.env.ADMIN_EMAILS
         ?.split(",")

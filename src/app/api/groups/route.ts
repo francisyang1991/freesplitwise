@@ -3,6 +3,7 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { toGroupSummary } from "@/lib/group-serializers";
+import { getMembershipNetBalances } from "@/lib/balances";
 
 const sanitizeCurrency = (currency?: string | null) => {
   if (!currency) return "USD";
@@ -25,6 +26,7 @@ export async function GET() {
     include: {
       memberships: {
         select: {
+          id: true,
           userId: true,
           role: true,
         },
@@ -35,7 +37,25 @@ export async function GET() {
     },
   });
 
-  const payload = groups.map((group) => toGroupSummary(group, session.user.id));
+  const membershipRecords = groups
+    .map((group) =>
+      group.memberships.find((membership) => membership.userId === session.user.id),
+    )
+    .filter((membership): membership is { id: string; userId: string; role: string } =>
+      Boolean(membership?.id),
+    );
+
+  const netMap = await getMembershipNetBalances(
+    membershipRecords.map((membership) => membership.id),
+  );
+
+  const payload = groups.map((group) => {
+    const membership = group.memberships.find(
+      (entry) => entry.userId === session.user.id,
+    );
+    const net = membership ? netMap.get(membership.id) ?? 0 : 0;
+    return toGroupSummary(group, session.user.id, net);
+  });
 
   return NextResponse.json(payload, { status: 200 });
 }
@@ -75,6 +95,7 @@ export async function POST(req: NextRequest) {
     include: {
       memberships: {
         select: {
+          id: true,
           userId: true,
           role: true,
         },
@@ -82,7 +103,7 @@ export async function POST(req: NextRequest) {
     },
   });
 
-  return NextResponse.json(toGroupSummary(group, session.user.id), {
+  return NextResponse.json(toGroupSummary(group, session.user.id, 0), {
     status: 201,
   });
 }

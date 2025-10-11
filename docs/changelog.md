@@ -1,7 +1,7 @@
 # Changelog
 
 ## 2025-10-07
-- Initialized FreeSplitwise repository documentation.
+- Initialized SplitNinja repository documentation.
 - Added product plan outlining vision, scope, and milestones.
 - Documented architecture proposal covering frontend, backend, and infrastructure.
 - Recorded decisions on auth scope, reminder cadence, and mobile responsiveness for MVP.

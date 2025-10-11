@@ -1,7 +1,7 @@
 import type { Group, Membership, User } from "@prisma/client";
 
 type GroupWithMemberships = Group & {
-  memberships: Pick<Membership, "userId" | "role">[];
+  memberships: Pick<Membership, "id" | "userId" | "role">[];
 };
 
 export type GroupSummary = {
@@ -11,6 +11,8 @@ export type GroupSummary = {
   currency: string;
   memberCount: number;
   role: "OWNER" | "MEMBER";
+  membershipId: string | null;
+  netBalanceCents: number | null;
   createdAt: string;
   updatedAt: string;
 };
@@ -32,6 +34,7 @@ export type GroupMemberInfo = {
 export const toGroupSummary = (
   group: GroupWithMemberships,
   userId: string,
+  netBalanceCents: number | null = null,
 ): GroupSummary => {
   const membership = group.memberships.find((m) => m.userId === userId);
 
@@ -42,6 +45,8 @@ export const toGroupSummary = (
     currency: group.currency,
     memberCount: group.memberships.length,
     role: membership?.role ?? "MEMBER",
+    membershipId: membership?.id ?? null,
+    netBalanceCents,
     createdAt: group.createdAt.toISOString(),
     updatedAt: group.updatedAt.toISOString(),
   };

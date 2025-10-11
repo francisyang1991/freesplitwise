@@ -1,5 +1,6 @@
 import { notFound, redirect } from "next/navigation";
 import { getServerAuthSession } from "@/lib/auth";
+import { APP_URL } from "@/lib/env";
 import { prisma } from "@/lib/prisma";
 import { GroupExpensesSection } from "@/components/groups/group-expenses-section";
 import { GroupSettlementsPanel } from "@/components/groups/group-settlements-panel";
@@ -109,11 +110,8 @@ export default async function GroupPage({ params }: GroupPageProps) {
   const currentMember = memberInfos.find(
     (member) => member.userId === session.user.id,
   ) ?? null;
-  const inviteBaseUrl =
-    process.env.NEXT_PUBLIC_APP_URL ??
-    process.env.NEXTAUTH_URL ??
-    "http://localhost:3000";
-  const inviteLink = `${inviteBaseUrl.replace(/\/\$/, "")}/invite/${group.id}`;
+  const canRemoveMembers = isAdmin || currentMember?.role === "OWNER";
+  const inviteLink = `${APP_URL}/invite/${group.id}`;
   const canDelete = isAdmin || group.ownerId === session.user.id;
   const canLeave = group.ownerId !== session.user.id;
 
@@ -144,6 +142,8 @@ export default async function GroupPage({ params }: GroupPageProps) {
             canDelete={canDelete}
             canLeave={canLeave}
             inviteLink={inviteLink}
+            canRemoveMembers={canRemoveMembers}
+            currentMembershipId={currentMember?.membershipId ?? null}
           />
         </div>
       </div>

@@ -9,6 +9,8 @@ type GroupMembersPanelProps = {
   members: GroupMemberInfo[];
   isAdmin: boolean;
   showForm?: boolean;
+  canRemoveMembers?: boolean;
+  currentMembershipId?: string | null;
 };
 
 export function GroupMembersPanel({
@@ -16,6 +18,8 @@ export function GroupMembersPanel({
   members,
   isAdmin,
   showForm = true,
+  canRemoveMembers = false,
+  currentMembershipId = null,
 }: GroupMembersPanelProps) {
   const router = useRouter();
   const [name, setName] = useState("");
@@ -24,6 +28,8 @@ export function GroupMembersPanel({
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [seedStatus, setSeedStatus] = useState<"idle" | "running" | "success" | "error">("idle");
   const [seedMessage, setSeedMessage] = useState<string | null>(null);
+  const [removingMemberId, setRemovingMemberId] = useState<string | null>(null);
+  const [removeError, setRemoveError] = useState<string | null>(null);
 
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -59,6 +65,38 @@ export function GroupMembersPanel({
     }
   };
 
+  const handleRemoveMember = async (membershipId: string, label: string) => {
+    if (!canRemoveMembers) return;
+    if (
+      !window.confirm(
+        `Remove ${label} from this group? They will lose access to past expenses.`,
+      )
+    ) {
+      return;
+    }
+    setRemovingMemberId(membershipId);
+    setRemoveError(null);
+    try {
+      const response = await fetch(
+        `/api/groups/${groupId}/members/${membershipId}`,
+        {
+          method: "DELETE",
+        },
+      );
+      if (!response.ok) {
+        const payload = await response.json().catch(() => null);
+        throw new Error(payload?.error ?? "Unable to remove member");
+      }
+      setRemovingMemberId(null);
+      router.refresh();
+    } catch (error) {
+      setRemovingMemberId(null);
+      setRemoveError(
+        error instanceof Error ? error.message : "Failed to remove member.",
+      );
+    }
+  };
+
   return (
     <div className="rounded-xl border border-zinc-200 bg-white p-6 shadow-sm">
       <div className="flex items-center justify-between">
@@ -71,33 +109,62 @@ export function GroupMembersPanel({
       </div>
 
       <ul className="mt-4 space-y-3 text-sm text-zinc-700">
-        {members.map((membership) => (
-          <li key={membership.membershipId} className="flex items-center gap-3">
-            {membership.image ? (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img
-                src={membership.image}
-                alt={membership.name ?? membership.email ?? ""}
-                className="h-8 w-8 rounded-full object-cover"
-              />
-            ) : (
-              <span className="flex h-8 w-8 items-center justify-center rounded-full bg-emerald-100 text-xs font-semibold text-emerald-700">
-                {membership.name?.[0]?.toUpperCase() ??
-                  membership.email?.[0]?.toUpperCase() ??
-                  "?"}
-              </span>
-            )}
-            <div className="flex flex-col">
-              <span className="font-medium">
-                {membership.name ?? membership.email ?? "Member"}
-              </span>
-              <span className="text-xs uppercase text-zinc-500">
-                {membership.role.toLowerCase()}
-              </span>
-            </div>
-          </li>
-        ))}
+        {members.map((membership) => {
+          const displayName =
+            membership.name ?? membership.email ?? "Member";
+          const canRemoveThisMember =
+            canRemoveMembers &&
+            membership.role !== "OWNER" &&
+            membership.membershipId !== currentMembershipId;
+          return (
+            <li
+              key={membership.membershipId}
+              className="flex items-center justify-between gap-3"
+            >
+              <div className="flex items-center gap-3">
+                {membership.image ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img
+                    src={membership.image}
+                    alt={displayName}
+                    className="h-8 w-8 rounded-full object-cover"
+                  />
+                ) : (
+                  <span className="flex h-8 w-8 items-center justify-center rounded-full bg-emerald-100 text-xs font-semibold text-emerald-700">
+                    {membership.name?.[0]?.toUpperCase() ??
+                      membership.email?.[0]?.toUpperCase() ??
+                      "?"}
+                  </span>
+                )}
+                <div className="flex flex-col">
+                  <span className="font-medium">{displayName}</span>
+                  <span className="text-xs uppercase text-zinc-500">
+                    {membership.role.toLowerCase()}
+                  </span>
+                </div>
+              </div>
+              {canRemoveThisMember ? (
+                <button
+                  type="button"
+                  onClick={() =>
+                    handleRemoveMember(membership.membershipId, displayName)
+                  }
+                  className="rounded-md border border-red-300 px-3 py-1 text-xs font-semibold text-red-600 transition hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-60"
+                  disabled={removingMemberId === membership.membershipId}
+                >
+                  {removingMemberId === membership.membershipId
+                    ? "Removing..."
+                    : "Remove"}
+                </button>
+              ) : null}
+            </li>
+          );
+        })}
       </ul>
+
+      {removeError ? (
+        <p className="mt-3 text-sm text-red-600">{removeError}</p>
+      ) : null}
 
       {isAdmin && showForm ? (
         <form className="mt-6 grid gap-3" onSubmit={handleSubmit}>

@@ -100,7 +100,7 @@ export function GroupSettlementsPanel({
   const venmoHref = (settlement: SettlementSuggestion) => {
     const amount = (settlement.amountCents / 100).toFixed(2);
     const note = encodeURIComponent(
-      `FreeSplitwise settlement with ${nameFor(settlement.toMember)}`,
+      `SplitNinja settlement with ${nameFor(settlement.toMember)}`,
     );
     return `https://venmo.com/?txn=pay&amount=${amount}&note=${note}`;
   };

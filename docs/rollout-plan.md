@@ -1,7 +1,7 @@
 # Rollout Plan
 
 ## Goal
-Launch the FreeSplitwise web app to a small production cohort with reliable infrastructure, measured feedback loops, and a clear path to iterate.
+Launch the SplitNinja web app to a small production cohort with reliable infrastructure, measured feedback loops, and a clear path to iterate.
 
 ## Environments
 - **Local (dev):** SQLite, hot reload via `npm run dev`, debug helpers enabled for admin users.

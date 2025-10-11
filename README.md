@@ -1,6 +1,6 @@
-# FreeSplitwise
+# SplitNinja
 
-FreeSplitwise is an open-source web application that helps friends and groups split expenses fairly without subscription fees. The project now has an early Next.js application scaffold plus Google OAuth wiring in progress; additional context lives in `docs/`.
+SplitNinja is an open-source web application that helps friends and groups split expenses fairly without subscription fees. The project now has an early Next.js application scaffold plus Google OAuth wiring in progress; additional context lives in `docs/`.
 
 ## Project Snapshot
 - **Status:** Slice 5 (polish & docs) in progress
@@ -18,7 +18,7 @@ FreeSplitwise is an open-source web application that helps friends and groups sp
 ## Local Development
 1. Copy `.env.example` to `.env` and populate Google OAuth credentials plus a strong `NEXTAUTH_SECRET`.
    - Add your Google account email to `ADMIN_EMAILS` so you can toggle admin-only tools in the UI.
-   - Set `NEXT_PUBLIC_APP_URL` to `http://localhost:3000` for local debugging (or your production domain in deployed environments) so invite links and sharing features resolve correctly.
+   - Set `NEXT_PUBLIC_APP_URL` (and optional `APP_DEV_URL` / `APP_PROD_URL`) so invite links and sharing features resolve correctly. The repo defaults to `http://localhost:3000` for local dev and falls back to `https://splitninja.space` in production if no overrides are provided.
 2. Install dependencies with `npm install`.
 3. Push the Prisma schema to the dev database with `npm run db:push` (uses SQLite by default).
 4. Start the development server via `npm run dev` and visit `http://localhost:3000`.

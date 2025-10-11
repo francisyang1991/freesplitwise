@@ -1,4 +1,4 @@
-# FreeSplitwise Product Plan
+# SplitNinja Product Plan
 
 ## Vision
 Empower small groups to split and settle shared expenses without subscriptions by providing a simple, transparent, and automation-driven web experience.

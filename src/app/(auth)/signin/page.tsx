@@ -13,7 +13,7 @@ export default async function SignInPage() {
     <div className="mx-auto flex w-full max-w-md flex-col gap-6 rounded-xl border border-zinc-200 bg-white p-8 shadow-sm">
       <div className="space-y-2 text-center">
         <h1 className="text-2xl font-semibold text-zinc-900">
-          Sign in to FreeSplitwise
+          Sign in to SplitNinja
         </h1>
         <p className="text-sm text-zinc-600">
           Use your Google account to access existing groups or start a new one.

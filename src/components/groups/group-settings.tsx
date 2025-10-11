@@ -12,6 +12,8 @@ type GroupSettingsProps = {
   canDelete: boolean;
   canLeave: boolean;
   inviteLink: string;
+  canRemoveMembers: boolean;
+  currentMembershipId: string | null;
 };
 
 export function GroupSettings({
@@ -21,6 +23,8 @@ export function GroupSettings({
   canDelete,
   canLeave,
   inviteLink,
+  canRemoveMembers,
+  currentMembershipId,
 }: GroupSettingsProps) {
   const [open, setOpen] = useState(false);
   const [showAddMember, setShowAddMember] = useState(false);
@@ -156,6 +160,8 @@ export function GroupSettings({
                 members={members}
                 isAdmin={isAdmin}
                 showForm={showAddMember}
+                canRemoveMembers={canRemoveMembers}
+                currentMembershipId={currentMembershipId}
               />
 
               <div className="space-y-2">

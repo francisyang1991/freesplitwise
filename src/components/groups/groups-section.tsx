@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useState, type FormEvent } from "react";
 import type { GroupSummary } from "@/lib/group-serializers";
+import { formatCurrency } from "@/lib/currency";
 
 type Props = {
   initialGroups: GroupSummary[];
@@ -109,30 +110,47 @@ export function GroupsSection({ initialGroups }: Props) {
           </div>
         ) : (
           <ul className="grid gap-4 sm:grid-cols-2">
-            {groups.map((group) => (
-              <li key={group.id}>
-                <Link
-                  href={`/dashboard/groups/${group.id}`}
-                  className="block h-full rounded-lg border border-zinc-200 bg-white p-5 shadow-sm transition hover:border-emerald-400 hover:shadow-md"
-                >
-                  <div className="flex items-center justify-between gap-2">
-                    <h3 className="text-base font-semibold text-zinc-900">
-                      {group.name}
-                    </h3>
-                    <span className="rounded-full border border-emerald-200 bg-emerald-50 px-2 py-1 text-[11px] font-semibold uppercase tracking-wider text-emerald-700">
-                      {group.role.toLowerCase()}
-                    </span>
-                  </div>
-                  <p className="mt-2 h-[48px] overflow-hidden text-sm text-zinc-600">
-                    {group.description ?? "No description yet."}
-                  </p>
-                  <div className="mt-4 flex items-center justify-between text-xs text-zinc-500">
-                    <span>{group.memberCount} members</span>
-                    <span>{group.currency}</span>
-                  </div>
-                </Link>
-              </li>
-            ))}
+            {groups.map((group) => {
+              const net = group.netBalanceCents ?? 0;
+              let balanceLabel = "Settled up";
+              let balanceClass = "text-zinc-500";
+
+              if (net > 0) {
+                balanceLabel = `Ahead ${formatCurrency(net, group.currency)}`;
+                balanceClass = "text-emerald-600";
+              } else if (net < 0) {
+                balanceLabel = `Owes ${formatCurrency(Math.abs(net), group.currency)}`;
+                balanceClass = "text-orange-600";
+              }
+
+              return (
+                <li key={group.id}>
+                  <Link
+                    href={`/dashboard/groups/${group.id}`}
+                    className="block h-full rounded-lg border border-zinc-200 bg-white p-5 shadow-sm transition hover:border-emerald-400 hover:shadow-md"
+                  >
+                    <div className="flex items-center justify-between gap-2">
+                      <h3 className="text-base font-semibold text-zinc-900">
+                        {group.name}
+                      </h3>
+                      <span className="rounded-full border border-emerald-200 bg-emerald-50 px-2 py-1 text-[11px] font-semibold uppercase tracking-wider text-emerald-700">
+                        {group.role.toLowerCase()}
+                      </span>
+                    </div>
+                    <p className="mt-2 h-[48px] overflow-hidden text-sm text-zinc-600">
+                      {group.description ?? "No description yet."}
+                    </p>
+                    <div className="mt-4 flex items-center justify-between text-xs text-zinc-500">
+                      <span>{group.memberCount} members</span>
+                      <span>{group.currency}</span>
+                    </div>
+                    <div className="mt-3 text-sm font-semibold">
+                      <span className={balanceClass}>{balanceLabel}</span>
+                    </div>
+                  </Link>
+                </li>
+              );
+            })}
           </ul>
         )}
       </section>

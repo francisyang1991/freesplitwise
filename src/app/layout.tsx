@@ -16,8 +16,8 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "FreeSplitwise",
-  description: "Open-source group expense sharing",
+  title: "SplitNinja",
+  description: "Plan, split, and settle group expenses without friction.",
 };
 
 export default async function RootLayout({
