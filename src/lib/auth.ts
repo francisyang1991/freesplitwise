@@ -71,8 +71,16 @@ export const authOptions: NextAuthOptions = {
         accountProvider: message.account?.provider,
       });
     },
-    async signInFailure(message) {
-      console.error("[auth] signIn failure event", message);
+  },
+  logger: {
+    error(code, metadata) {
+      console.error("[auth] logger error", code, metadata);
+    },
+    warn(code, metadata) {
+      console.warn("[auth] logger warn", code, metadata);
+    },
+    debug(code, metadata) {
+      console.debug("[auth] logger debug", code, metadata);
     },
   },
 };
