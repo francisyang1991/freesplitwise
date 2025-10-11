@@ -73,14 +73,14 @@ export const authOptions: NextAuthOptions = {
     },
   },
   logger: {
-    error(code, metadata) {
-      console.error("[auth] logger error", code, metadata);
+    error(code, ...metadata) {
+      console.error("[auth] logger error", code, ...metadata);
     },
-    warn(code, metadata) {
-      console.warn("[auth] logger warn", code, metadata);
+    warn(code, ...metadata) {
+      console.warn("[auth] logger warn", code, ...metadata);
     },
-    debug(code, metadata) {
-      console.debug("[auth] logger debug", code, metadata);
+    debug(code, ...metadata) {
+      console.debug("[auth] logger debug", code, ...metadata);
     },
   },
 };
