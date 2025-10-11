@@ -11,6 +11,7 @@ export const authOptions: NextAuthOptions = {
   session: {
     strategy: "database",
   },
+  debug: process.env.NEXT_PUBLIC_APP_URL?.includes("splitninja.space") ? true : undefined,
   providers: [
     GoogleProvider({
       clientId: process.env.GOOGLE_CLIENT_ID ?? "",
@@ -22,6 +23,12 @@ export const authOptions: NextAuthOptions = {
   },
   callbacks: {
     async redirect({ url }) {
+      console.info("[auth] redirect callback", {
+        url,
+        appUrl: APP_URL,
+        nextAuthUrl: process.env.NEXTAUTH_URL,
+        nextPublicAppUrl: process.env.NEXT_PUBLIC_APP_URL,
+      });
       if (url.startsWith("/")) {
         return `${APP_URL}${url}`;
       }
@@ -55,6 +62,20 @@ export const authOptions: NextAuthOptions = {
         session.user.role = (user.role as "MEMBER" | "ADMIN") ?? "MEMBER";
       }
       return session;
+    },
+  },
+  events: {
+    async signIn(message) {
+      console.info("[auth] signIn event", {
+        userId: message.user?.id,
+        accountProvider: message.account?.provider,
+      });
+    },
+    async error(message) {
+      console.error("[auth] error event", {
+        name: message.name,
+        message: message.message,
+      });
     },
   },
 };
