@@ -81,7 +81,7 @@ export function SettlementActionButton({
       </button>
 
       {isOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-25 sm:hidden">
+        <div className="fixed inset-0 z-50 flex items-center justify-center sm:hidden">
           <div className="mx-4 w-full max-w-xs rounded-lg border border-zinc-200 bg-white shadow-lg">
             <div className="py-2">
               <button
