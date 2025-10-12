@@ -1,3 +1,4 @@
+import { revalidatePath } from "next/cache";
 import { NextResponse, type NextRequest } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
@@ -53,7 +54,12 @@ export async function GET() {
     return toGroupSummary(group, session.user.id, net);
   });
 
-  return NextResponse.json(payload, { status: 200 });
+  return NextResponse.json(payload, {
+    status: 200,
+    headers: {
+      "Cache-Control": "private, max-age=30",
+    },
+  });
 }
 
 export async function POST(req: NextRequest) {
@@ -99,6 +105,7 @@ export async function POST(req: NextRequest) {
     },
   });
 
+  revalidatePath("/dashboard");
   return NextResponse.json(toGroupSummary(group, session.user.id, 0), {
     status: 201,
   });

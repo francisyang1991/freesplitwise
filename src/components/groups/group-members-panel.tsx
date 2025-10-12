@@ -87,6 +87,11 @@ export function GroupMembersPanel({
         const payload = await response.json().catch(() => null);
         throw new Error(payload?.error ?? "Unable to remove member");
       }
+      window.dispatchEvent(
+        new CustomEvent("group:expenses-updated", {
+          detail: { groupId },
+        }),
+      );
       setRemovingMemberId(null);
       router.refresh();
     } catch (error) {

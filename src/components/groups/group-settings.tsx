@@ -30,12 +30,15 @@ export function GroupSettings({
   const [showAddMember, setShowAddMember] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
   const [actionStatus, setActionStatus] = useState<"idle" | "deleting" | "leaving">("idle");
+  const [copyStatus, setCopyStatus] = useState<"idle" | "copied">("idle");
   const router = useRouter();
 
   const copyInviteLink = async () => {
     try {
       await navigator.clipboard.writeText(inviteLink);
       setActionError(null);
+      setCopyStatus("copied");
+      setTimeout(() => setCopyStatus("idle"), 2000);
     } catch {
       setActionError("Unable to copy invite link. Copy manually instead.");
     }
@@ -139,11 +142,18 @@ export function GroupSettings({
                   <button
                     type="button"
                     onClick={copyInviteLink}
-                    className="rounded-md border border-zinc-300 px-3 py-2 text-sm font-semibold text-zinc-700 transition hover:bg-zinc-100"
+                    className={`rounded-md px-3 py-2 text-sm font-semibold transition ${
+                      copyStatus === "copied"
+                        ? "border border-emerald-500 bg-emerald-500 text-white"
+                        : "border border-zinc-300 text-zinc-700 hover:bg-zinc-100"
+                    }`}
                   >
-                    Copy
+                    {copyStatus === "copied" ? "Copied!" : "Copy"}
                   </button>
                 </div>
+                {copyStatus === "copied" ? (
+                  <p className="mt-2 text-xs text-emerald-600">Invite link copied to clipboard.</p>
+                ) : null}
               </div>
 
               {isAdmin ? (

@@ -1,11 +1,26 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { getServerAuthSession } from "@/lib/auth";
+import { prisma } from "@/lib/prisma";
 
 export default async function Home() {
   const session = await getServerAuthSession();
   if (session) {
     redirect("/dashboard");
+  }
+
+  let averageRating: number | null = null;
+  let totalRatings = 0;
+  try {
+    const feedbackStats = await prisma.feedback.aggregate({
+      where: { rating: { not: null } },
+      _avg: { rating: true },
+      _count: { rating: true },
+    });
+    averageRating = feedbackStats._avg.rating ?? null;
+    totalRatings = feedbackStats._count.rating ?? 0;
+  } catch (error) {
+    console.error("Failed to load feedback stats", error);
   }
 
   return (
@@ -64,6 +79,19 @@ export default async function Home() {
           </div>
         ))}
       </div>
+      {averageRating !== null && totalRatings > 0 ? (
+        <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-6 text-center shadow-sm">
+          <p className="text-sm font-semibold uppercase tracking-wider text-emerald-700">
+            Community rating
+          </p>
+          <p className="mt-2 text-3xl font-bold text-emerald-700">
+            {averageRating.toFixed(1)} / 5
+          </p>
+          <p className="mt-1 text-sm text-emerald-800">
+            Based on {totalRatings} {totalRatings === 1 ? "feedback" : "feedback entries"} from the SplitNinja crew.
+          </p>
+        </div>
+      ) : null}
     </section>
   );
 }

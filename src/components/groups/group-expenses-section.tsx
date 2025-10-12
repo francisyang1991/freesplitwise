@@ -74,6 +74,7 @@ export function GroupExpensesSection({
   const [deletingExpenseId, setDeletingExpenseId] = useState<string | null>(null);
   const [listError, setListError] = useState<string | null>(null);
   const [pendingDeleteExpense, setPendingDeleteExpense] = useState<ExpenseSummary | null>(null);
+  const [isExpensesRefreshing, setIsExpensesRefreshing] = useState(false);
 
   const sessionMemberId = currentMember?.membershipId ?? null;
   const defaultPayerAppliedRef = useRef(false);
@@ -513,6 +514,42 @@ export function GroupExpensesSection({
     );
   }, [groupId]);
 
+  const refreshExpenses = useCallback(async () => {
+    try {
+      setIsExpensesRefreshing(true);
+      const response = await fetch(`/api/groups/${groupId}/expenses`, {
+        cache: "no-store",
+      });
+      if (!response.ok) {
+        throw new Error("Unable to refresh expenses for this group.");
+      }
+      const payload = (await response.json()) as ExpenseSummary[];
+      setExpenses(payload);
+    } catch (error) {
+      console.error("Failed to refresh expenses after membership update", error);
+    } finally {
+      setIsExpensesRefreshing(false);
+    }
+  }, [groupId]);
+
+  useEffect(() => {
+    const handler = (event: Event) => {
+      if (
+        event instanceof CustomEvent &&
+        event.detail &&
+        typeof event.detail === "object" &&
+        "groupId" in event.detail &&
+        event.detail.groupId === groupId
+      ) {
+        void refreshExpenses();
+      }
+    };
+    window.addEventListener("group:expenses-updated", handler);
+    return () => {
+      window.removeEventListener("group:expenses-updated", handler);
+    };
+  }, [groupId, refreshExpenses]);
+
   return (
     <div className="flex flex-col gap-8">
       <div className="flex items-center justify-between">
@@ -521,6 +558,9 @@ export function GroupExpensesSection({
           <span className="text-xs text-zinc-500">
             {expenses.length} item{expenses.length === 1 ? "" : "s"}
           </span>
+          {isExpensesRefreshing ? (
+            <span className="text-xs text-emerald-600">Refreshing…</span>
+          ) : null}
         </div>
         <button
           type="button"

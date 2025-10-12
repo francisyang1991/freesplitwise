@@ -5,21 +5,21 @@ export const getMembershipNetBalances = async (membershipIds: string[]) => {
   if (uniqueIds.length === 0) return new Map<string, number>();
 
   const [payerGroups, shareGroups] = await Promise.all([
-    prisma.expensePayer.groupBy({
-      by: ["membershipId"],
+    prisma.expensePayer.findMany({
       where: {
         membershipId: { in: uniqueIds },
       },
-      _sum: {
+      select: {
+        membershipId: true,
         amountCents: true,
       },
     }),
-    prisma.expenseShare.groupBy({
-      by: ["membershipId"],
+    prisma.expenseShare.findMany({
       where: {
         membershipId: { in: uniqueIds },
       },
-      _sum: {
+      select: {
+        membershipId: true,
         amountCents: true,
       },
     }),
@@ -30,12 +30,12 @@ export const getMembershipNetBalances = async (membershipIds: string[]) => {
 
   payerGroups.forEach((entry) => {
     const current = netMap.get(entry.membershipId) ?? 0;
-    netMap.set(entry.membershipId, current + (entry._sum.amountCents ?? 0));
+    netMap.set(entry.membershipId, current + (entry.amountCents ?? 0));
   });
 
   shareGroups.forEach((entry) => {
     const current = netMap.get(entry.membershipId) ?? 0;
-    netMap.set(entry.membershipId, current - (entry._sum.amountCents ?? 0));
+    netMap.set(entry.membershipId, current - (entry.amountCents ?? 0));
   });
 
   return netMap;
