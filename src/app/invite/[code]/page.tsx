@@ -51,7 +51,7 @@ export default async function InvitePage({
   try {
     const result = await joinGroup(code, session.user.id);
     redirect(`/dashboard/groups/${result.groupId}`);
-  } catch (error) {
+  } catch {
     notFound();
   }
 }

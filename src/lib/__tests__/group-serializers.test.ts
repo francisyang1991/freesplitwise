@@ -1,4 +1,4 @@
-import { toGroupSummary, toGroupMemberInfo, type GroupSummary, type GroupMemberInfo } from '../group-serializers'
+import { toGroupSummary, toGroupMemberInfo } from '../group-serializers'
 import type { Group, Membership, User } from '@prisma/client'
 
 describe('Group serializers', () => {

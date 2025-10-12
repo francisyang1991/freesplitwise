@@ -3,7 +3,6 @@ import {
   simplifySettlements,
   buildSettlementLedger,
   type BalanceEntry,
-  type SettlementSuggestion,
 } from '../settlement'
 import type { ExpenseSummary, GroupMemberInfo } from '../group-serializers'
 
