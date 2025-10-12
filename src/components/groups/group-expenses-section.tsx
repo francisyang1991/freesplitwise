@@ -268,8 +268,9 @@ export function GroupExpensesSection({
           ...row,
           included,
           weight: splitMode === "equal" && included ? "1" : row.weight,
-          autoPaid: splitMode === "equal" ? true : row.autoPaid,
-          paid: included ? row.paid : "",
+          // Don't change autoPaid or paid when toggling inclusion
+          autoPaid: row.autoPaid,
+          paid: row.paid,
         };
       }),
       false // Don't force auto-distribution for manual row changes
@@ -282,6 +283,9 @@ export function GroupExpensesSection({
         ...row,
         included: select,
         weight: splitMode === "equal" && select ? "1" : row.weight,
+        // Don't change autoPaid or paid when toggling inclusion
+        autoPaid: row.autoPaid,
+        paid: row.paid,
       })),
       false // Don't force auto-distribution for select all
     );
@@ -295,6 +299,9 @@ export function GroupExpensesSection({
           ...row,
           included: true,
           weight: splitMode === "equal" ? "1" : row.weight.trim() || "1",
+          // Don't change autoPaid or paid when including member
+          autoPaid: row.autoPaid,
+          paid: row.paid,
         };
       }),
       false // Don't force auto-distribution for quick include
