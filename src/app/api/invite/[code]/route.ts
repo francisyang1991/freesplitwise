@@ -6,21 +6,22 @@ import { prisma } from "@/lib/prisma";
 
 type RouteParams = {
   params: Promise<{
-    groupId: string;
+    code: string;
   }>;
 };
 
 export async function POST(_req: NextRequest, context: RouteParams) {
-  const { groupId } = await context.params;
+  const { code } = await context.params;
   const session = await getServerSession(authOptions);
   if (!session?.user?.id) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
   const group = await prisma.group.findUnique({
-    where: { id: groupId },
+    where: { inviteCode: code },
     select: {
       id: true,
+      inviteCode: true,
     },
   });
 
@@ -30,7 +31,7 @@ export async function POST(_req: NextRequest, context: RouteParams) {
 
   const existingMembership = await prisma.membership.findFirst({
     where: {
-      groupId,
+      groupId: group.id,
       userId: session.user.id,
     },
   });
@@ -41,14 +42,14 @@ export async function POST(_req: NextRequest, context: RouteParams) {
 
   await prisma.membership.create({
     data: {
-      groupId,
+      groupId: group.id,
       userId: session.user.id,
       role: "MEMBER",
     },
   });
 
   revalidatePath("/dashboard");
-  revalidatePath(`/dashboard/groups/${groupId}`);
+  revalidatePath(`/dashboard/groups/${group.id}`);
 
   return NextResponse.json({ success: true, joined: true }, { status: 201 });
 }

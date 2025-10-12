@@ -4,6 +4,7 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { toGroupSummary } from "@/lib/group-serializers";
+import { generateUniqueInviteCode } from "@/lib/invite-code";
 import { getMembershipNetBalances } from "@/lib/balances";
 
 const sanitizeCurrency = (currency?: string | null) => {
@@ -81,12 +82,15 @@ export async function POST(req: NextRequest) {
     );
   }
 
+  const inviteCode = await generateUniqueInviteCode(prisma);
+
   const group = await prisma.group.create({
     data: {
       name,
       description,
       currency,
       ownerId: session.user.id,
+      inviteCode,
       memberships: {
         create: {
           userId: session.user.id,

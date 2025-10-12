@@ -12,6 +12,7 @@ import {
 } from "@/lib/group-serializers";
 import { toExpenseSummary } from "@/lib/expense-serializers";
 import { buildSettlementLedger } from "@/lib/settlement";
+import { generateUniqueInviteCode } from "@/lib/invite-code";
 
 type GroupPageProps = {
   params: Promise<{
@@ -56,6 +57,15 @@ export default async function GroupPage({ params }: GroupPageProps) {
 
   if (!group) {
     notFound();
+  }
+
+  let inviteCode = group.inviteCode;
+  if (!inviteCode) {
+    inviteCode = await generateUniqueInviteCode(prisma);
+    await prisma.group.update({
+      where: { id: group.id },
+      data: { inviteCode },
+    });
   }
 
   const owner = group.memberships.find((m) => m.userId === group.ownerId);
@@ -111,7 +121,7 @@ export default async function GroupPage({ params }: GroupPageProps) {
     (member) => member.userId === session.user.id,
   ) ?? null;
   const canRemoveMembers = isAdmin || currentMember?.role === "OWNER";
-  const inviteLink = `${APP_URL}/invite/${group.id}`;
+  const inviteLink = `${APP_URL}/invite/${inviteCode}`;
   const canDelete = isAdmin || group.ownerId === session.user.id;
   const canLeave = group.ownerId !== session.user.id;
 
