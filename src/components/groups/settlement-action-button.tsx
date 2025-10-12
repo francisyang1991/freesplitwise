@@ -81,37 +81,28 @@ export function SettlementActionButton({
       </button>
 
       {isOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center sm:hidden">
-          <div className="mx-4 w-full max-w-xs rounded-lg border border-zinc-200 bg-white shadow-lg">
-            <div className="py-2">
-              <button
-                type="button"
-                onClick={() => handleAction("venmo")}
-                className="flex w-full items-center px-4 py-3 text-sm text-zinc-700 hover:bg-zinc-50"
-              >
-                <svg className="mr-3 h-5 w-5 text-emerald-600" fill="currentColor" viewBox="0 0 20 20">
-                  <path d="M10 2L3 7v11h4v-6h6v6h4V7l-7-5z" />
-                </svg>
-                Pay with Venmo
-              </button>
-              <button
-                type="button"
-                onClick={() => handleAction("paid")}
-                className="flex w-full items-center px-4 py-3 text-sm text-zinc-700 hover:bg-zinc-50"
-              >
-                <svg className="mr-3 h-5 w-5 text-green-600" fill="currentColor" viewBox="0 0 20 20">
-                  <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
-                </svg>
-                Mark as Paid
-              </button>
-              <button
-                type="button"
-                onClick={() => setIsOpen(false)}
-                className="flex w-full items-center px-4 py-3 text-sm text-zinc-500 hover:bg-zinc-50 border-t border-zinc-100"
-              >
-                Cancel
-              </button>
-            </div>
+        <div className="absolute right-0 top-full mt-1 w-48 rounded-md border border-zinc-200 bg-white shadow-lg z-10 sm:hidden">
+          <div className="py-1">
+            <button
+              type="button"
+              onClick={() => handleAction("venmo")}
+              className="flex w-full items-center px-4 py-2 text-sm text-zinc-700 hover:bg-zinc-50"
+            >
+              <svg className="mr-3 h-4 w-4 text-emerald-600" fill="currentColor" viewBox="0 0 20 20">
+                <path d="M10 2L3 7v11h4v-6h6v6h4V7l-7-5z" />
+              </svg>
+              Pay with Venmo
+            </button>
+            <button
+              type="button"
+              onClick={() => handleAction("paid")}
+              className="flex w-full items-center px-4 py-2 text-sm text-zinc-700 hover:bg-zinc-50"
+            >
+              <svg className="mr-3 h-4 w-4 text-green-600" fill="currentColor" viewBox="0 0 20 20">
+                <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+              </svg>
+              Mark as Paid
+            </button>
           </div>
         </div>
       )}
