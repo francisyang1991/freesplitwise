@@ -102,7 +102,41 @@ export function GroupSettlementsPanel({
     const note = encodeURIComponent(
       `SplitNinja settlement with ${nameFor(settlement.toMember)}`,
     );
-    return `https://venmo.com/?txn=pay&amount=${amount}&note=${note}`;
+    // Use venmo:// deep link to open payment page directly with amount and note
+    // Fallback to web URL if app is not installed
+    return `venmo://paycharge?txn=pay&amount=${amount}&note=${note}`;
+  };
+
+  const handleVenmoClick = (settlement: SettlementSuggestion, event: React.MouseEvent) => {
+    event.preventDefault();
+    const amount = (settlement.amountCents / 100).toFixed(2);
+    const note = encodeURIComponent(
+      `SplitNinja settlement with ${nameFor(settlement.toMember)}`,
+    );
+    
+    // Try deep link first
+    const deepLink = `venmo://paycharge?txn=pay&amount=${amount}&note=${note}`;
+    const webLink = `https://venmo.com/?txn=pay&amount=${amount}&note=${note}`;
+    
+    // Create a hidden link to test if deep link works
+    const testLink = document.createElement('a');
+    testLink.href = deepLink;
+    testLink.style.display = 'none';
+    document.body.appendChild(testLink);
+    
+    // Set up fallback timer
+    const fallbackTimer = setTimeout(() => {
+      window.open(webLink, '_blank');
+    }, 1000);
+    
+    // Try deep link
+    testLink.click();
+    
+    // Clean up
+    setTimeout(() => {
+      document.body.removeChild(testLink);
+      clearTimeout(fallbackTimer);
+    }, 2000);
   };
 
   const handleCopy = async () => {
@@ -210,14 +244,12 @@ export function GroupSettlementsPanel({
                         <span className="font-semibold text-emerald-600">
                           {formatCurrency(settlement.amountCents, currency)}
                         </span>
-                        <a
-                          href={venmoHref(settlement)}
-                          target="_blank"
-                          rel="noopener noreferrer"
+                        <button
+                          onClick={(e) => handleVenmoClick(settlement, e)}
                           className="rounded-md border border-emerald-400 px-3 py-1 text-xs font-semibold uppercase tracking-wider text-emerald-600 transition hover:bg-emerald-50"
                         >
                           {actionLabel}
-                        </a>
+                        </button>
                       </div>
                     </div>
                   </li>
