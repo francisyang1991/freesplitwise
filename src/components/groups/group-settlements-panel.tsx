@@ -302,6 +302,7 @@ export function GroupSettlementsPanel({
                         </span>
                         <SettlementActionButton 
                           settlement={settlement}
+                          currentMemberId={currentMemberId}
                           onStatusChange={handleSettlementStatus}
                           onVenmoClick={handleVenmoClick}
                         />

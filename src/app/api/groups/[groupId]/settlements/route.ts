@@ -135,6 +135,7 @@ export async function GET(
     });
 
     return NextResponse.json({
+      balances: ledgerSettlements.balances,
       settlements: mergedSettlements,
       trackedSettlements: group.settlements,
     });

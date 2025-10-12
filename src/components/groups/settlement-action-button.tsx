@@ -5,12 +5,14 @@ import type { SettlementSuggestion } from "@/lib/settlement";
 
 interface SettlementActionButtonProps {
   settlement: SettlementSuggestion;
+  currentMemberId: string | null;
   onStatusChange: (settlement: SettlementSuggestion, status: "REQUESTED" | "PAID") => void;
   onVenmoClick: (settlement: SettlementSuggestion, event: React.MouseEvent) => void;
 }
 
 export function SettlementActionButton({ 
   settlement, 
+  currentMemberId,
   onStatusChange, 
   onVenmoClick 
 }: SettlementActionButtonProps) {
@@ -59,6 +61,11 @@ export function SettlementActionButton({
       } as React.MouseEvent;
       onVenmoClick(settlement, syntheticEvent);
     } else if (action === "paid") {
+      // Check if current user can mark this as paid
+      if (currentMemberId && currentMemberId !== settlement.fromMembershipId) {
+        alert("You can only mark your own payments as paid.");
+        return;
+      }
       onStatusChange(settlement, "PAID");
     }
   };
