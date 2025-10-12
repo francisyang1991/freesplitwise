@@ -46,7 +46,7 @@ describe('Invite code generation', () => {
     it('should generate unique code when no conflict exists', async () => {
       mockPrisma.group.findUnique.mockResolvedValue(null)
 
-      const code = await generateUniqueInviteCode(mockPrisma as PrismaClient, 6, 5)
+      const code = await generateUniqueInviteCode(mockPrisma as unknown as Parameters<typeof generateUniqueInviteCode>[0], 6, 5)
 
       expect(code).toHaveLength(6)
       expect(mockPrisma.group.findUnique).toHaveBeenCalledWith({
@@ -61,7 +61,7 @@ describe('Invite code generation', () => {
         .mockResolvedValueOnce({ id: 'existing-group' })
         .mockResolvedValueOnce(null)
 
-      const code = await generateUniqueInviteCode(mockPrisma as PrismaClient, 6, 5)
+      const code = await generateUniqueInviteCode(mockPrisma as unknown as Parameters<typeof generateUniqueInviteCode>[0], 6, 5)
 
       expect(code).toHaveLength(6)
       expect(mockPrisma.group.findUnique).toHaveBeenCalledTimes(2)
@@ -72,14 +72,14 @@ describe('Invite code generation', () => {
       mockPrisma.group.findUnique.mockResolvedValue({ id: 'existing-group' })
 
       await expect(
-        generateUniqueInviteCode(mockPrisma as PrismaClient, 6, 3)
+        generateUniqueInviteCode(mockPrisma as unknown as Parameters<typeof generateUniqueInviteCode>[0], 6, 3)
       ).rejects.toThrow('Unable to generate unique invite code')
     })
 
     it('should use default parameters', async () => {
       mockPrisma.group.findUnique.mockResolvedValue(null)
 
-      const code = await generateUniqueInviteCode(mockPrisma as PrismaClient)
+      const code = await generateUniqueInviteCode(mockPrisma as unknown as Parameters<typeof generateUniqueInviteCode>[0])
 
       expect(code).toHaveLength(6)
       expect(mockPrisma.group.findUnique).toHaveBeenCalledWith({
@@ -91,7 +91,7 @@ describe('Invite code generation', () => {
     it('should handle custom length and max attempts', async () => {
       mockPrisma.group.findUnique.mockResolvedValue(null)
 
-      const code = await generateUniqueInviteCode(mockPrisma as PrismaClient, 8, 10)
+      const code = await generateUniqueInviteCode(mockPrisma as unknown as Parameters<typeof generateUniqueInviteCode>[0], 8, 10)
 
       expect(code).toHaveLength(8)
     })
@@ -100,7 +100,7 @@ describe('Invite code generation', () => {
       mockPrisma.group.findUnique.mockRejectedValue(new Error('Database error'))
 
       await expect(
-        generateUniqueInviteCode(mockPrisma as PrismaClient, 6, 1)
+        generateUniqueInviteCode(mockPrisma as unknown as Parameters<typeof generateUniqueInviteCode>[0], 6, 1)
       ).rejects.toThrow('Database error')
     })
   })

@@ -4,7 +4,8 @@ import {
   buildSettlementLedger,
   type BalanceEntry,
 } from '../settlement'
-import type { ExpenseSummary, GroupMemberInfo } from '../group-serializers'
+import type { GroupMemberInfo } from '../group-serializers'
+import type { ExpenseSummary } from '../expense-serializers'
 
 describe('Settlement calculations', () => {
   const mockMembers: GroupMemberInfo[] = [
@@ -49,19 +50,35 @@ describe('Settlement calculations', () => {
     currency: 'USD',
     occurredAt: '2024-01-01T00:00:00Z',
     createdAt: '2024-01-01T00:00:00Z',
-    payers: payers.map((p) => ({
-      id: `payer-${p.membershipId}`,
-      membershipId: p.membershipId,
-      amountCents: p.amountCents,
-      user: mockMembers.find((m) => m.membershipId === p.membershipId) || null,
-    })),
-    shares: shares.map((s) => ({
-      id: `share-${s.membershipId}`,
-      membershipId: s.membershipId,
-      weight: 1,
-      amountCents: s.amountCents,
-      user: mockMembers.find((m) => m.membershipId === s.membershipId) || null,
-    })),
+    payers: payers.map((p) => {
+      const member = mockMembers.find((m) => m.membershipId === p.membershipId);
+      return {
+        id: `payer-${p.membershipId}`,
+        membershipId: p.membershipId,
+        amountCents: p.amountCents,
+        user: member ? {
+          id: member.userId,
+          name: member.name,
+          email: member.email,
+          image: member.image,
+        } : null,
+      };
+    }),
+    shares: shares.map((s) => {
+      const member = mockMembers.find((m) => m.membershipId === s.membershipId);
+      return {
+        id: `share-${s.membershipId}`,
+        membershipId: s.membershipId,
+        weight: 1,
+        amountCents: s.amountCents,
+        user: member ? {
+          id: member.userId,
+          name: member.name,
+          email: member.email,
+          image: member.image,
+        } : null,
+      };
+    }),
   })
 
   describe('computeBalances', () => {
