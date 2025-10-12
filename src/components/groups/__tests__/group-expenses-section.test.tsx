@@ -157,6 +157,9 @@ describe('GroupExpensesSection', () => {
       // The payment assignments should not be affected by inclusion changes
       // This is tested by ensuring the form still renders correctly
       expect(screen.getByDisplayValue('Test expense')).toBeInTheDocument();
+      
+      // Verify "Paid total" is correct - should match the total amount
+      expect(screen.getByText('Paid total: $30.00')).toBeInTheDocument();
     });
 
     it('should preserve manual payment entries when toggling inclusion', async () => {
@@ -211,6 +214,9 @@ describe('GroupExpensesSection', () => {
 
       // The form should still be functional after inclusion changes
       expect(screen.getByDisplayValue('Test expense')).toBeInTheDocument();
+      
+      // Verify "Paid total" is correct - should match the total amount
+      expect(screen.getByText('Paid total: $30.00')).toBeInTheDocument();
     });
 
     it('should handle select all functionality without changing payment assignments', async () => {
@@ -269,6 +275,127 @@ describe('GroupExpensesSection', () => {
 
       // The form should still be functional after select all changes
       expect(screen.getByDisplayValue('Test expense')).toBeInTheDocument();
+      
+      // Verify "Paid total" is correct - should match the total amount
+      expect(screen.getByText('Paid total: $30.00')).toBeInTheDocument();
+    });
+  });
+
+  describe('Paid total calculation', () => {
+    it('should display correct paid total that matches total amount', async () => {
+      render(
+        <GroupExpensesSection
+          groupId="test-group"
+          currency="USD"
+          members={mockMembers}
+          initialExpenses={mockExpenses}
+          currentMember={mockCurrentMember}
+        />
+      );
+
+      // Open expense form
+      const addButton = screen.getByText('Add expense');
+      fireEvent.click(addButton);
+
+      // Wait for form to load
+      await waitFor(() => {
+        expect(screen.getByText('Description')).toBeInTheDocument();
+      });
+
+      // Fill in expense details
+      const descriptionInput = screen.getByLabelText('Description');
+      const totalAmountInput = screen.getByLabelText('Total amount (USD)');
+      
+      fireEvent.change(descriptionInput, { target: { value: 'Test expense' } });
+      fireEvent.change(totalAmountInput, { target: { value: '150.00' } });
+
+      // Wait for auto-distribution to occur
+      await waitFor(() => {
+        // Check that paid total matches the total amount
+        expect(screen.getByText('Paid total: $150.00')).toBeInTheDocument();
+      });
+
+      // Verify the calculation is correct
+      const paidTotalElement = screen.getByText('Paid total: $150.00');
+      expect(paidTotalElement).toBeInTheDocument();
+    });
+
+    it('should update paid total when total amount changes', async () => {
+      render(
+        <GroupExpensesSection
+          groupId="test-group"
+          currency="USD"
+          members={mockMembers}
+          initialExpenses={mockExpenses}
+          currentMember={mockCurrentMember}
+        />
+      );
+
+      // Open expense form
+      const addButton = screen.getByText('Add expense');
+      fireEvent.click(addButton);
+
+      // Wait for form to load
+      await waitFor(() => {
+        expect(screen.getByText('Description')).toBeInTheDocument();
+      });
+
+      // Fill in initial amount
+      const descriptionInput = screen.getByLabelText('Description');
+      const totalAmountInput = screen.getByLabelText('Total amount (USD)');
+      
+      fireEvent.change(descriptionInput, { target: { value: 'Test expense' } });
+      fireEvent.change(totalAmountInput, { target: { value: '100.00' } });
+
+      // Wait for initial calculation
+      await waitFor(() => {
+        expect(screen.getByText('Paid total: $100.00')).toBeInTheDocument();
+      });
+
+      // Change the total amount
+      fireEvent.change(totalAmountInput, { target: { value: '200.00' } });
+
+      // Wait for updated calculation
+      await waitFor(() => {
+        expect(screen.getByText('Paid total: $200.00')).toBeInTheDocument();
+      });
+    });
+
+    it('should handle edge case where paid total might be wrong', async () => {
+      render(
+        <GroupExpensesSection
+          groupId="test-group"
+          currency="USD"
+          members={mockMembers}
+          initialExpenses={mockExpenses}
+          currentMember={mockCurrentMember}
+        />
+      );
+
+      // Open expense form
+      const addButton = screen.getByText('Add expense');
+      fireEvent.click(addButton);
+
+      // Wait for form to load
+      await waitFor(() => {
+        expect(screen.getByText('Description')).toBeInTheDocument();
+      });
+
+      // Fill in expense details with a specific amount that might cause issues
+      const descriptionInput = screen.getByLabelText('Description');
+      const totalAmountInput = screen.getByLabelText('Total amount (USD)');
+      
+      fireEvent.change(descriptionInput, { target: { value: 'Test expense' } });
+      fireEvent.change(totalAmountInput, { target: { value: '285.00' } });
+
+      // Wait for calculation and verify it matches
+      await waitFor(() => {
+        // This should catch the bug where paid total shows $285.00 but should match total
+        expect(screen.getByText('Paid total: $285.00')).toBeInTheDocument();
+      });
+
+      // Verify the total amount input matches the paid total
+      expect(screen.getByDisplayValue('285.00')).toBeInTheDocument();
     });
   });
 });

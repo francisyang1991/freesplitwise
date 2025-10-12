@@ -458,7 +458,8 @@ export function GroupExpensesSection({
   };
 
   const openDetail = (expense: ExpenseSummary) => {
-    setDetailExpense(expense);
+    // Directly open edit form instead of detail view
+    openForm(expense);
   };
 
   const closeDetail = () => {
