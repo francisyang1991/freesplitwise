@@ -1,6 +1,7 @@
 import type { Group, Membership, User } from "@prisma/client";
 
 type GroupWithMemberships = Group & {
+  inviteCode: string | null;
   memberships: Pick<Membership, "id" | "userId" | "role">[];
 };
 
@@ -9,6 +10,7 @@ export type GroupSummary = {
   name: string;
   description: string | null;
   currency: string;
+  inviteCode: string | null;
   memberCount: number;
   role: "OWNER" | "MEMBER";
   membershipId: string | null;
@@ -43,6 +45,7 @@ export const toGroupSummary = (
     name: group.name,
     description: group.description,
     currency: group.currency,
+    inviteCode: group.inviteCode ?? null,
     memberCount: group.memberships.length,
     role: membership?.role ?? "MEMBER",
     membershipId: membership?.id ?? null,

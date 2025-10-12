@@ -18,12 +18,20 @@ export const generateUniqueInviteCode = async (
 ): Promise<string> => {
   for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
     const code = generateInviteCode(length);
-    const existing = await prisma.group.findUnique({
-      where: { inviteCode: code },
-      select: { id: true },
-    });
-    if (!existing) {
-      return code;
+    try {
+      const existing = await prisma.group.findUnique({
+        where: { inviteCode: code },
+        select: { id: true },
+      });
+      if (!existing) {
+        return code;
+      }
+    } catch (error) {
+      console.error(
+        "Failed to verify invite code uniqueness. Did you run the inviteCode migration?",
+        error,
+      );
+      throw error;
     }
   }
   throw new Error("Unable to generate unique invite code");

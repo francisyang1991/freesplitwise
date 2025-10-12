@@ -1,7 +1,41 @@
 import { notFound, redirect } from "next/navigation";
-import { revalidatePath } from "next/cache";
 import { getServerAuthSession } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+
+async function joinGroup(code: string, userId: string) {
+  const group = await prisma.group.findUnique({
+    where: { inviteCode: code },
+    select: {
+      id: true,
+      inviteCode: true,
+    },
+  });
+
+  if (!group) {
+    throw new Error("Group not found");
+  }
+
+  const existingMembership = await prisma.membership.findFirst({
+    where: {
+      groupId: group.id,
+      userId: userId,
+    },
+  });
+
+  if (existingMembership) {
+    return { groupId: group.id, alreadyJoined: true };
+  }
+
+  await prisma.membership.create({
+    data: {
+      groupId: group.id,
+      userId: userId,
+      role: "MEMBER",
+    },
+  });
+
+  return { groupId: group.id, alreadyJoined: false };
+}
 
 export default async function InvitePage({
   params,
@@ -14,40 +48,10 @@ export default async function InvitePage({
     redirect(`/signin?callbackUrl=/invite/${code}`);
   }
 
-  const group = await prisma.group.findUnique({
-    where: { inviteCode: code },
-    include: {
-      owner: {
-        select: {
-          name: true,
-          email: true,
-        },
-      },
-      memberships: {
-        where: { userId: session.user.id },
-        select: { id: true },
-      },
-    },
-  });
-
-  if (!group) {
+  try {
+    const result = await joinGroup(code, session.user.id);
+    redirect(`/dashboard/groups/${result.groupId}`);
+  } catch (error) {
     notFound();
   }
-
-  if (group.memberships.length > 0) {
-    redirect(`/dashboard/groups/${group.id}`);
-  }
-
-  await prisma.membership.create({
-    data: {
-      groupId: group.id,
-      userId: session.user.id,
-      role: "MEMBER",
-    },
-  });
-
-  revalidatePath("/dashboard");
-  revalidatePath(`/dashboard/groups/${group.id}`);
-
-  redirect(`/dashboard/groups/${group.id}`);
 }
