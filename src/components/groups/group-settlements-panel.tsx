@@ -102,9 +102,8 @@ export function GroupSettlementsPanel({
     const note = encodeURIComponent(
       `SplitNinja settlement with ${nameFor(settlement.toMember)}`,
     );
-    // Use venmo:// deep link to open payment page directly with amount and note
-    // Fallback to web URL if app is not installed
-    return `venmo://paycharge?txn=pay&amount=${amount}&note=${note}`;
+    // Use correct Venmo deep link format to open payment page directly
+    return `venmo://venmo.com/paycharge?txn=pay&amount=${amount}&note=${note}`;
   };
 
   const handleVenmoClick = (settlement: SettlementSuggestion, event: React.MouseEvent) => {
@@ -114,29 +113,44 @@ export function GroupSettlementsPanel({
       `SplitNinja settlement with ${nameFor(settlement.toMember)}`,
     );
     
-    // Try deep link first
-    const deepLink = `venmo://paycharge?txn=pay&amount=${amount}&note=${note}`;
+    // Try multiple Venmo deep link formats
+    const deepLinkFormats = [
+      `venmo://venmo.com/paycharge?txn=pay&amount=${amount}&note=${note}`,
+      `venmo://paycharge?txn=pay&amount=${amount}&note=${note}`,
+      `venmo://venmo.com/pay?txn=pay&amount=${amount}&note=${note}`,
+    ];
+    
     const webLink = `https://venmo.com/?txn=pay&amount=${amount}&note=${note}`;
     
-    // Create a hidden link to test if deep link works
-    const testLink = document.createElement('a');
-    testLink.href = deepLink;
-    testLink.style.display = 'none';
-    document.body.appendChild(testLink);
+    // Track if any deep link succeeded
+    let deepLinkSucceeded = false;
     
-    // Set up fallback timer
-    const fallbackTimer = setTimeout(() => {
-      window.open(webLink, '_blank');
-    }, 1000);
-    
-    // Try deep link
-    testLink.click();
-    
-    // Clean up
-    setTimeout(() => {
-      document.body.removeChild(testLink);
-      clearTimeout(fallbackTimer);
-    }, 2000);
+    // Try each deep link format
+    deepLinkFormats.forEach((deepLink, index) => {
+      const testLink = document.createElement('a');
+      testLink.href = deepLink;
+      testLink.style.display = 'none';
+      document.body.appendChild(testLink);
+      
+      // Set up fallback timer for this specific format
+      const fallbackTimer = setTimeout(() => {
+        if (!deepLinkSucceeded && index === deepLinkFormats.length - 1) {
+          // Only fallback to web if this is the last format and none succeeded
+          window.open(webLink, '_blank');
+        }
+        document.body.removeChild(testLink);
+      }, 500);
+      
+      // Try deep link
+      testLink.click();
+      
+      // Mark as succeeded after a short delay
+      setTimeout(() => {
+        deepLinkSucceeded = true;
+        clearTimeout(fallbackTimer);
+        document.body.removeChild(testLink);
+      }, 100);
+    });
   };
 
   const handleCopy = async () => {
