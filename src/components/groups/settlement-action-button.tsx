@@ -81,7 +81,7 @@ export function SettlementActionButton({
       </button>
 
       {isOpen && (
-        <div className="absolute right-0 top-full mt-1 w-48 rounded-md border border-zinc-200 bg-white shadow-lg z-10 sm:hidden">
+        <div className="absolute left-1/2 top-full mt-1 w-48 -translate-x-1/2 rounded-md border border-zinc-200 bg-white shadow-lg z-10 sm:hidden">
           <div className="py-1">
             <button
               type="button"
