@@ -16,7 +16,9 @@ Use this checklist each time you publish an update to production.
 
 ## Secrets & Config
 - Update hosting platform env vars: `DATABASE_URL`, `NEXTAUTH_URL`, `NEXTAUTH_SECRET`, `GOOGLE_CLIENT_ID/SECRET`, `ADMIN_EMAILS`.
+- For staging (`freesplitwise.vercel.app`), use staging credentials and a separate Supabase database/schema.
 - For preview environments, use staging credentials and a separate Supabase database/schema.
+- Set `APP_STAGING_URL=https://freesplitwise.vercel.app` for staging deployments.
 
 ## Build & Release
 - Trigger Vercel (or chosen host) deploy from main branch.

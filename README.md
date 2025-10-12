@@ -18,7 +18,7 @@ SplitNinja is an open-source web application that helps friends and groups split
 ## Local Development
 1. Copy `.env.example` to `.env` and populate Google OAuth credentials plus a strong `NEXTAUTH_SECRET`.
    - Add your Google account email to `ADMIN_EMAILS` so you can toggle admin-only tools in the UI.
-   - Set `NEXT_PUBLIC_APP_URL` (and optional `APP_DEV_URL` / `APP_PROD_URL`) so invite links and sharing features resolve correctly. The repo defaults to `http://localhost:3000` for local dev and falls back to `https://splitninja.space` in production if no overrides are provided.
+   - Set `NEXT_PUBLIC_APP_URL` (and optional `APP_DEV_URL` / `APP_PROD_URL` / `APP_STAGING_URL`) so invite links and sharing features resolve correctly. The repo defaults to `http://localhost:3000` for local dev, `https://freesplitwise.vercel.app` for staging, and falls back to `https://splitninja.space` in production if no overrides are provided.
 2. Install dependencies with `npm install`.
 3. Push the Prisma schema to the dev database with `npm run db:push` (uses SQLite by default).
 4. Start the development server via `npm run dev` and visit `http://localhost:3000`.
