@@ -1,5 +1,6 @@
 import { redirect } from "next/navigation";
 import Link from "next/link";
+import { Suspense } from "react";
 import { getServerAuthSession } from "@/lib/auth";
 import { GoogleSignInButton } from "@/components/auth/google-signin-button";
 
@@ -19,7 +20,9 @@ export default async function SignInPage() {
           Use your Google account to access existing groups or start a new one.
         </p>
       </div>
-      <GoogleSignInButton />
+      <Suspense fallback={<div>Loading...</div>}>
+        <GoogleSignInButton />
+      </Suspense>
       <p className="text-center text-xs text-zinc-500">
         By signing in, you agree to our{" "}
         <Link href="#" className="underline underline-offset-4">

@@ -2,16 +2,19 @@
 
 import { signIn } from "next-auth/react";
 import { useTransition } from "react";
+import { useSearchParams } from "next/navigation";
 
 export function GoogleSignInButton() {
   const [isPending, startTransition] = useTransition();
+  const searchParams = useSearchParams();
+  const callbackUrl = searchParams.get("callbackUrl") || "/dashboard";
 
   return (
     <button
       type="button"
       onClick={() =>
         startTransition(() => {
-          void signIn("google", { callbackUrl: "/dashboard" });
+          void signIn("google", { callbackUrl });
         })
       }
       className="inline-flex w-full items-center justify-center gap-2 rounded-md bg-emerald-600 px-4 py-2.5 text-base font-semibold text-white shadow-sm transition hover:bg-emerald-500 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-500 disabled:cursor-not-allowed disabled:opacity-70"
