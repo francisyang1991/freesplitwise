@@ -21,7 +21,8 @@ Use this checklist each time you publish an update to production.
 - Set `APP_STAGING_URL=https://freesplitwise.vercel.app` for staging deployments.
 
 ## Build & Release
-- Trigger Vercel (or chosen host) deploy from main branch.
+- **Staging**: Trigger Vercel deploy from staging branch to `freesplitwise.vercel.app`.
+- **Production**: Manually trigger Vercel deploy from main branch to `splitninja.space`.
 - Watch deployment logs for Next.js build success.
 - Post-deploy smoke test: open production URL, walk through core flows, confirm balances and settlements render.
 
