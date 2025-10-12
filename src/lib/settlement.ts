@@ -15,6 +15,7 @@ export type SettlementSuggestion = {
   amountCents: number;
   fromMember: GroupMemberInfo;
   toMember: GroupMemberInfo;
+  status?: "PENDING" | "REQUESTED" | "PAID" | "CANCELLED";
 };
 
 export type SettlementLedger = {

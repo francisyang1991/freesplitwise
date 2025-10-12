@@ -21,6 +21,7 @@ model User {
   accounts        Account[]
   sessions        Session[]
   feedbacks       Feedback[]
+  expenseHistory  ExpenseHistory[]
   createdAt       DateTime     @default(now())
   updatedAt       DateTime     @updatedAt
 }
@@ -73,20 +74,23 @@ model Group {
   owner       User         @relation("GroupOwner", fields: [ownerId], references: [id])
   memberships Membership[]
   expenses    Expense[]
+  settlements Settlement[]
 }
 
 model Membership {
-  id            String         @id @default(cuid())
-  userId        String
-  groupId       String
-  role          MembershipRole @default(MEMBER)
-  joinedAt      DateTime       @default(now())
-  createdAt     DateTime       @default(now())
-  updatedAt     DateTime       @updatedAt
-  user          User           @relation(fields: [userId], references: [id], onDelete: Cascade)
-  group         Group          @relation(fields: [groupId], references: [id], onDelete: Cascade)
-  expensePayers ExpensePayer[]
-  expenseShares ExpenseShare[]
+  id                String         @id @default(cuid())
+  userId            String
+  groupId           String
+  role              MembershipRole @default(MEMBER)
+  joinedAt          DateTime       @default(now())
+  createdAt         DateTime       @default(now())
+  updatedAt         DateTime       @updatedAt
+  user              User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  group             Group          @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  expensePayers     ExpensePayer[]
+  expenseShares     ExpenseShare[]
+  settlementsFrom   Settlement[]   @relation("SettlementFrom")
+  settlementsTo     Settlement[]   @relation("SettlementTo")
 
   @@unique([userId, groupId])
 }
@@ -105,6 +109,7 @@ model Expense {
   createdBy        User           @relation("ExpenseCreator", fields: [createdById], references: [id])
   payers           ExpensePayer[]
   shares           ExpenseShare[]
+  history          ExpenseHistory[]
 }
 
 model ExpensePayer {
@@ -134,6 +139,36 @@ model ExpenseShare {
   @@unique([expenseId, membershipId])
 }
 
+model ExpenseHistory {
+  id          String   @id @default(cuid())
+  expenseId   String
+  userId      String
+  action      String   // "created", "updated", "deleted"
+  changes     Json?    // Store the changes made
+  createdAt   DateTime @default(now())
+  expense     Expense  @relation(fields: [expenseId], references: [id], onDelete: Cascade)
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model Settlement {
+  id              String         @id @default(cuid())
+  groupId         String
+  fromMembershipId String
+  toMembershipId  String
+  amountCents     Int
+  currency        String         @default("USD")
+  status          SettlementStatus @default(PENDING)
+  requestedAt     DateTime?
+  paidAt          DateTime?
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
+  group           Group          @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  fromMember      Membership     @relation("SettlementFrom", fields: [fromMembershipId], references: [id])
+  toMember        Membership     @relation("SettlementTo", fields: [toMembershipId], references: [id])
+
+  @@unique([fromMembershipId, toMembershipId])
+}
+
 model Feedback {
   id        String   @id @default(cuid())
   userId    String
@@ -151,4 +186,11 @@ enum MembershipRole {
 enum UserRole {
   MEMBER
   ADMIN
+}
+
+enum SettlementStatus {
+  PENDING
+  REQUESTED
+  PAID
+  CANCELLED
 }

@@ -61,7 +61,19 @@ export async function PUT(req: NextRequest, context: RouteParams) {
   }
 
   const updatedExpense = await prisma.$transaction(async (tx) => {
-    return tx.expense.update({
+    // Record changes for history
+    const changes: any = {};
+    if (existingExpense.description !== parsed.description) {
+      changes.description = parsed.description;
+    }
+    if (existingExpense.totalAmountCents !== parsed.totalAmountCents) {
+      changes.totalAmountCents = parsed.totalAmountCents;
+    }
+    if (existingExpense.currency !== parsed.currency) {
+      changes.currency = parsed.currency;
+    }
+
+    const expense = await tx.expense.update({
       where: { id: existingExpense.id },
       data: {
         description: parsed.description,
@@ -119,6 +131,20 @@ export async function PUT(req: NextRequest, context: RouteParams) {
         },
       },
     });
+
+    // Create history entry if there were changes
+    if (Object.keys(changes).length > 0) {
+      await tx.expenseHistory.create({
+        data: {
+          expenseId: existingExpense.id,
+          userId: session.user.id,
+          action: "updated",
+          changes,
+        },
+      });
+    }
+
+    return expense;
   });
 
   return NextResponse.json(toExpenseSummary(updatedExpense), { status: 200 });
@@ -153,7 +179,23 @@ export async function DELETE(req: NextRequest, context: RouteParams) {
     return NextResponse.json({ error: "Expense not found" }, { status: 404 });
   }
 
-  await prisma.expense.delete({ where: { id: expenseId } });
+  await prisma.$transaction(async (tx) => {
+    // Create history entry for deletion
+    await tx.expenseHistory.create({
+      data: {
+        expenseId: expense.id,
+        userId: session.user.id,
+        action: "deleted",
+        changes: {
+          description: expense.description,
+          totalAmountCents: expense.totalAmountCents,
+        },
+      },
+    });
+
+    // Delete the expense
+    await tx.expense.delete({ where: { id: expenseId } });
+  });
 
   return NextResponse.json({ success: true }, { status: 200 });
 }

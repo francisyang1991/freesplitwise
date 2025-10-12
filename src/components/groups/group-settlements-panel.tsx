@@ -6,6 +6,7 @@ import type {
   SettlementSuggestion,
 } from "@/lib/settlement";
 import { formatCurrency } from "@/lib/currency";
+import { shareManager } from "@/lib/share";
 
 type Props = {
   groupId: string;
@@ -153,6 +154,32 @@ export function GroupSettlementsPanel({
     });
   };
 
+  const handleSettlementStatus = async (settlement: SettlementSuggestion, status: "REQUESTED" | "PAID") => {
+    try {
+      const response = await fetch(`/api/groups/${groupId}/settlements`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          fromMembershipId: settlement.fromMembershipId,
+          toMembershipId: settlement.toMembershipId,
+          amountCents: settlement.amountCents,
+          status,
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error("Failed to update settlement status");
+      }
+
+      // Refresh the ledger to show updated status
+      await refreshLedger();
+    } catch (error) {
+      console.error("Error updating settlement status:", error);
+    }
+  };
+
   const handleCopy = async () => {
     try {
       await navigator.clipboard.writeText(copyText);
@@ -171,17 +198,31 @@ export function GroupSettlementsPanel({
         <h2 className="text-sm font-semibold uppercase tracking-wider text-zinc-500">
           Settlements
         </h2>
-        <button
-          type="button"
-          className="rounded-md border border-zinc-300 px-3 py-1.5 text-xs font-semibold uppercase tracking-wider text-zinc-600 transition hover:bg-zinc-100"
-          onClick={handleCopy}
-        >
-          {copyStatus === "copied"
-            ? "Copied!"
-            : copyStatus === "error"
-            ? "Copy failed"
-            : "Copy summary"}
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            className="rounded-md border border-zinc-300 px-3 py-1.5 text-xs font-semibold uppercase tracking-wider text-zinc-600 transition hover:bg-zinc-100"
+            onClick={handleCopy}
+          >
+            {copyStatus === "copied"
+              ? "Copied!"
+              : copyStatus === "error"
+              ? "Copy failed"
+              : "Copy summary"}
+          </button>
+          <button
+            type="button"
+            className="rounded-md border border-zinc-300 px-3 py-1.5 text-xs font-semibold uppercase tracking-wider text-zinc-600 transition hover:bg-zinc-100"
+            onClick={async () => {
+              await shareManager.share({
+                title: "Settlement Summary",
+                text: copyText,
+              });
+            }}
+          >
+            Share
+          </button>
+        </div>
       </div>
 
       <button
@@ -258,12 +299,34 @@ export function GroupSettlementsPanel({
                         <span className="font-semibold text-emerald-600">
                           {formatCurrency(settlement.amountCents, currency)}
                         </span>
-                        <button
-                          onClick={(e) => handleVenmoClick(settlement, e)}
-                          className="rounded-md border border-emerald-400 px-3 py-1 text-xs font-semibold uppercase tracking-wider text-emerald-600 transition hover:bg-emerald-50"
-                        >
-                          {actionLabel}
-                        </button>
+                        <div className="flex items-center gap-1">
+                          <button
+                            onClick={() => handleSettlementStatus(settlement, "REQUESTED")}
+                            className={`rounded-md px-2 py-1 text-xs font-semibold uppercase tracking-wider transition ${
+                              settlement.status === "REQUESTED"
+                                ? "bg-orange-100 text-orange-700"
+                                : "border border-orange-300 text-orange-600 hover:bg-orange-50"
+                            }`}
+                          >
+                            Request
+                          </button>
+                          <button
+                            onClick={() => handleSettlementStatus(settlement, "PAID")}
+                            className={`rounded-md px-2 py-1 text-xs font-semibold uppercase tracking-wider transition ${
+                              settlement.status === "PAID"
+                                ? "bg-green-100 text-green-700"
+                                : "border border-green-300 text-green-600 hover:bg-green-50"
+                            }`}
+                          >
+                            Paid
+                          </button>
+                          <button
+                            onClick={(e) => handleVenmoClick(settlement, e)}
+                            className="rounded-md border border-emerald-400 px-2 py-1 text-xs font-semibold uppercase tracking-wider text-emerald-600 transition hover:bg-emerald-50"
+                          >
+                            Venmo
+                          </button>
+                        </div>
                       </div>
                     </div>
                   </li>

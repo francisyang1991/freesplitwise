@@ -4,6 +4,8 @@ import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } fro
 import type { GroupMemberInfo } from "@/lib/group-serializers";
 import type { ExpenseSummary } from "@/lib/expense-serializers";
 import { formatCurrency, parseCurrencyToCents } from "@/lib/currency";
+import { ExpenseTimeline } from "./expense-timeline";
+import { shareManager } from "@/lib/share";
 
 type Props = {
   groupId: string;
@@ -748,6 +750,11 @@ export function GroupExpensesSection({
               />
             </div>
 
+            {/* Expense Timeline */}
+            <div className="mt-6">
+              <ExpenseTimeline expense={detailExpense} groupId={groupId} />
+            </div>
+
             <div className="mt-6 flex items-center gap-3">
               <button
                 type="button"
@@ -758,6 +765,16 @@ export function GroupExpensesSection({
                 className="inline-flex items-center justify-center rounded-md bg-emerald-600 px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-emerald-500"
               >
                 Edit expense
+              </button>
+              <button
+                type="button"
+                onClick={async () => {
+                  const group = members.find(m => m.membershipId === sessionMemberId)?.groupName || "Group";
+                  await shareManager.shareExpense(detailExpense, group);
+                }}
+                className="inline-flex items-center justify-center rounded-md border border-zinc-300 px-4 py-2 text-sm font-semibold text-zinc-700 transition hover:bg-zinc-50"
+              >
+                Share
               </button>
               <button
                 type="button"

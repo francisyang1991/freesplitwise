@@ -21,6 +21,26 @@ export function AppHeader() {
         <div className="flex items-center gap-3 text-sm">
           {status === "loading" ? null : session?.user ? (
             <>
+              <Link
+                href="/dashboard"
+                className={`px-3 py-1.5 font-medium transition rounded-md ${
+                  pathname === "/dashboard"
+                    ? "bg-zinc-100 text-zinc-900"
+                    : "text-zinc-600 hover:text-zinc-900"
+                }`}
+              >
+                Dashboard
+              </Link>
+              <Link
+                href="/dashboard/trends"
+                className={`px-3 py-1.5 font-medium transition rounded-md ${
+                  pathname === "/dashboard/trends"
+                    ? "bg-zinc-100 text-zinc-900"
+                    : "text-zinc-600 hover:text-zinc-900"
+                }`}
+              >
+                Trends
+              </Link>
               <span className="hidden text-sm text-zinc-600 sm:inline">
                 {session.user.name ?? session.user.email}
               </span>

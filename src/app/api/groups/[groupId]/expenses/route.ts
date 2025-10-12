@@ -148,6 +148,17 @@ export async function POST(req: NextRequest, context: RouteParams) {
           amountCents: share.amountCents,
         })),
       },
+      history: {
+        create: {
+          userId: session.user.id,
+          action: "created",
+          changes: {
+            description: parsed.description,
+            totalAmountCents: parsed.totalAmountCents,
+            currency: parsed.currency,
+          },
+        },
+      },
     },
     include: {
       payers: {

@@ -1,108 +1,235 @@
-import { NextResponse, type NextRequest } from "next/server";
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth";
+import { NextRequest, NextResponse } from "next/server";
+import { getServerAuthSession } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import {
-  toGroupMemberInfo,
-  type GroupMemberInfo,
-} from "@/lib/group-serializers";
-import { toExpenseSummary } from "@/lib/expense-serializers";
-import { buildSettlementLedger } from "@/lib/settlement";
+import { simplifySettlements, buildSettlementLedger } from "@/lib/settlement";
 
-type RouteParams = {
-  params: Promise<{
-    groupId: string;
-  }>;
-};
+export async function GET(
+  request: NextRequest,
+  { params }: { params: Promise<{ groupId: string }> }
+) {
+  try {
+    const session = await getServerAuthSession();
+    if (!session) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
 
-export async function GET(req: NextRequest, context: RouteParams) {
-  const { groupId } = await context.params;
-  const session = await getServerSession(authOptions);
-  if (!session?.user?.id) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
+    const { groupId } = await params;
 
-  const group = await prisma.group.findUnique({
-    where: { id: groupId },
-    include: {
-      memberships: {
-        include: {
-          user: {
-            select: {
-              id: true,
-              name: true,
-              email: true,
-              image: true,
+    // Verify user is member of the group
+    const membership = await prisma.membership.findUnique({
+      where: {
+        userId_groupId: {
+          userId: session.user.id,
+          groupId,
+        },
+      },
+    });
+
+    if (!membership) {
+      return NextResponse.json({ error: "Not a member of this group" }, { status: 403 });
+    }
+
+    // Get group with expenses and memberships
+    const group = await prisma.group.findUnique({
+      where: { id: groupId },
+      include: {
+        expenses: {
+          include: {
+            payers: {
+              include: {
+                membership: {
+                  include: {
+                    user: {
+                      select: {
+                        id: true,
+                        name: true,
+                        email: true,
+                        image: true,
+                      },
+                    },
+                  },
+                },
+              },
+            },
+            shares: {
+              include: {
+                membership: {
+                  include: {
+                    user: {
+                      select: {
+                        id: true,
+                        name: true,
+                        email: true,
+                        image: true,
+                      },
+                    },
+                  },
+                },
+              },
             },
           },
         },
-      },
-    },
-  });
-
-  if (!group) {
-    return NextResponse.json({ error: "Group not found" }, { status: 404 });
-  }
-
-  const isMember = group.memberships.some(
-    (membership) => membership.userId === session.user.id,
-  );
-
-  if (!isMember) {
-    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
-  }
-
-  const memberInfos: GroupMemberInfo[] = group.memberships.map((membership) =>
-    toGroupMemberInfo(membership),
-  );
-
-  const expenses = await prisma.expense.findMany({
-    where: { groupId: group.id },
-    include: {
-      payers: {
-        include: {
-          membership: {
-            include: {
-              user: {
-                select: {
-                  id: true,
-                  name: true,
-                  email: true,
-                  image: true,
+        memberships: {
+          include: {
+            user: {
+              select: {
+                id: true,
+                name: true,
+                email: true,
+                image: true,
+              },
+            },
+          },
+        },
+        settlements: {
+          include: {
+            fromMember: {
+              include: {
+                user: {
+                  select: {
+                    id: true,
+                    name: true,
+                    email: true,
+                    image: true,
+                  },
+                },
+              },
+            },
+            toMember: {
+              include: {
+                user: {
+                  select: {
+                    id: true,
+                    name: true,
+                    email: true,
+                    image: true,
+                  },
                 },
               },
             },
           },
         },
       },
-      shares: {
-        include: {
-          membership: {
-            include: {
-              user: {
-                select: {
-                  id: true,
-                  name: true,
-                  email: true,
-                  image: true,
-                },
+    });
+
+    if (!group) {
+      return NextResponse.json({ error: "Group not found" }, { status: 404 });
+    }
+
+    // Calculate settlements
+    const settlements = simplifySettlements(group.expenses);
+    const ledgerSettlements = buildSettlementLedger(settlements, group.memberships);
+
+    // Merge tracked settlements with calculated ones
+    const mergedSettlements = ledgerSettlements.map((settlement) => {
+      const trackedSettlement = group.settlements.find(
+        (tracked) =>
+          tracked.fromMembershipId === settlement.fromMembershipId &&
+          tracked.toMembershipId === settlement.toMembershipId
+      );
+      
+      return {
+        ...settlement,
+        status: trackedSettlement?.status || "PENDING",
+      };
+    });
+
+    return NextResponse.json({
+      settlements: mergedSettlements,
+      trackedSettlements: group.settlements,
+    });
+  } catch (error) {
+    console.error("Error fetching settlements:", error);
+    return NextResponse.json(
+      { error: "Failed to fetch settlements" },
+      { status: 500 }
+    );
+  }
+}
+
+export async function POST(
+  request: NextRequest,
+  { params }: { params: Promise<{ groupId: string }> }
+) {
+  try {
+    const session = await getServerAuthSession();
+    if (!session) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    const { groupId } = await params;
+    const { fromMembershipId, toMembershipId, amountCents, status } = await request.json();
+
+    // Verify user is member of the group
+    const membership = await prisma.membership.findUnique({
+      where: {
+        userId_groupId: {
+          userId: session.user.id,
+          groupId,
+        },
+      },
+    });
+
+    if (!membership) {
+      return NextResponse.json({ error: "Not a member of this group" }, { status: 403 });
+    }
+
+    // Create or update settlement
+    const settlement = await prisma.settlement.upsert({
+      where: {
+        fromMembershipId_toMembershipId: {
+          fromMembershipId,
+          toMembershipId,
+        },
+      },
+      update: {
+        status,
+        requestedAt: status === "REQUESTED" ? new Date() : undefined,
+        paidAt: status === "PAID" ? new Date() : undefined,
+      },
+      create: {
+        groupId,
+        fromMembershipId,
+        toMembershipId,
+        amountCents,
+        status,
+        requestedAt: status === "REQUESTED" ? new Date() : undefined,
+        paidAt: status === "PAID" ? new Date() : undefined,
+      },
+      include: {
+        fromMember: {
+          include: {
+            user: {
+              select: {
+                id: true,
+                name: true,
+                email: true,
+                image: true,
+              },
+            },
+          },
+        },
+        toMember: {
+          include: {
+            user: {
+              select: {
+                id: true,
+                name: true,
+                email: true,
+                image: true,
               },
             },
           },
         },
       },
-    },
-  });
+    });
 
-  const expenseSummaries = expenses.map(toExpenseSummary);
-  const ledger = buildSettlementLedger(expenseSummaries, memberInfos);
-
-  return NextResponse.json(
-    {
-      currency: group.currency,
-      balances: ledger.balances,
-      settlements: ledger.settlements,
-    },
-    { status: 200 },
-  );
+    return NextResponse.json({ settlement });
+  } catch (error) {
+    console.error("Error creating/updating settlement:", error);
+    return NextResponse.json(
+      { error: "Failed to create/update settlement" },
+      { status: 500 }
+    );
+  }
 }
