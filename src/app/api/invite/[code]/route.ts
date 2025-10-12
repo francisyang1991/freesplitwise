@@ -37,7 +37,7 @@ export async function POST(_req: NextRequest, context: RouteParams) {
   });
 
   if (existingMembership) {
-    return NextResponse.json({ success: true, joined: true }, { status: 200 });
+    return NextResponse.json({ success: true, joined: true, groupId: group.id }, { status: 200 });
   }
 
   await prisma.membership.create({
@@ -51,5 +51,5 @@ export async function POST(_req: NextRequest, context: RouteParams) {
   revalidatePath("/dashboard");
   revalidatePath(`/dashboard/groups/${group.id}`);
 
-  return NextResponse.json({ success: true, joined: true }, { status: 201 });
+  return NextResponse.json({ success: true, joined: true, groupId: group.id }, { status: 201 });
 }

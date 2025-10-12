@@ -11,7 +11,7 @@ type Props = {
 type JoinResult = {
   success: boolean;
   groupId?: string;
-  alreadyJoined?: boolean;
+  joined?: boolean;
   error?: string;
 };
 
@@ -34,12 +34,17 @@ export function InviteHandler({ code, userId }: Props) {
         });
 
         const result: JoinResult = await response.json();
+        console.log(`[invite] API response:`, result);
 
         if (!response.ok) {
           throw new Error(result.error || "Failed to join group");
         }
 
-        console.log(`[invite] Successfully joined group ${result.groupId}, alreadyJoined: ${result.alreadyJoined}`);
+        if (!result.groupId) {
+          throw new Error("Group ID not returned from server");
+        }
+
+        console.log(`[invite] Successfully joined group ${result.groupId}, joined: ${result.joined}`);
         
         setStatus("success");
         setMessage("Successfully joined the group! Redirecting...");
