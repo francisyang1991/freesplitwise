@@ -49,7 +49,7 @@ export function GroupSpendingChart({ data }: GroupSpendingChartProps) {
             fontSize={12}
           />
           <Tooltip 
-            formatter={(value: number, name, props) => [
+            formatter={(value: number) => [
               formatTooltipValue(value), 
               "Total Spent"
             ]}

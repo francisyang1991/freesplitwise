@@ -7,7 +7,7 @@ import type { ExpenseSummary } from "@/lib/expense-serializers";
 interface ExpenseHistoryEntry {
   id: string;
   action: string;
-  changes: any;
+  changes: Record<string, unknown> | null;
   createdAt: string;
   user: {
     id: string;
@@ -46,7 +46,7 @@ export function ExpenseTimeline({ expense, groupId }: ExpenseTimelineProps) {
     fetchHistory();
   }, [expense.id, groupId]);
 
-  const formatAction = (action: string, changes: any) => {
+  const formatAction = (action: string, changes: Record<string, unknown> | null) => {
     switch (action) {
       case "created":
         return "Created this expense";
@@ -54,7 +54,7 @@ export function ExpenseTimeline({ expense, groupId }: ExpenseTimelineProps) {
         if (changes?.description) {
           return `Updated description to "${changes.description}"`;
         }
-        if (changes?.totalAmountCents) {
+        if (changes?.totalAmountCents && typeof changes.totalAmountCents === 'number') {
           return `Updated amount to ${formatCurrency(changes.totalAmountCents, expense.currency)}`;
         }
         return "Updated this expense";

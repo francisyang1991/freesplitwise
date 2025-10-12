@@ -99,14 +99,6 @@ export function GroupSettlementsPanel({
       .join("\n");
   }, [currency, ledgerSettlements]);
 
-  const venmoHref = (settlement: SettlementSuggestion) => {
-    const amount = (settlement.amountCents / 100).toFixed(2);
-    const note = encodeURIComponent(
-      `SplitNinja settlement with ${nameFor(settlement.toMember)}`,
-    );
-    // Use correct Venmo deep link format to open payment page directly
-    return `venmo://venmo.com/paycharge?txn=pay&amount=${amount}&note=${note}`;
-  };
 
   const handleVenmoClick = (settlement: SettlementSuggestion, event: React.MouseEvent) => {
     event.preventDefault();
@@ -284,10 +276,6 @@ export function GroupSettlementsPanel({
           ) : (
             <ol className="mt-2 space-y-2 text-sm text-zinc-700">
               {ledgerSettlements.map((settlement, index) => {
-                const actionLabel =
-                  currentMemberId && settlement.toMembershipId === currentMemberId
-                    ? "Request"
-                    : "Pay";
                 return (
                   <li
                     key={`${settlement.fromMembershipId}-${settlement.toMembershipId}-${index}`}

@@ -91,7 +91,7 @@ export async function POST(
         expenseId,
         userId: session.user.id,
         action,
-        changes: changes || null,
+        changes: (changes || null) as any, // eslint-disable-line @typescript-eslint/no-explicit-any
       },
       include: {
         user: {

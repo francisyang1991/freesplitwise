@@ -5,7 +5,7 @@ const STORE_NAME = "expenses";
 
 interface CacheEntry {
   key: string;
-  data: any;
+  data: unknown;
   timestamp: number;
   expiry: number;
 }
@@ -39,7 +39,7 @@ class CacheManager {
     return this.initPromise;
   }
 
-  async set(key: string, data: any, ttlMinutes: number = 60): Promise<void> {
+  async set(key: string, data: unknown, ttlMinutes: number = 60): Promise<void> {
     await this.init();
     if (!this.db) throw new Error("Database not initialized");
 
@@ -55,7 +55,7 @@ class CacheManager {
     await store.put(entry);
   }
 
-  async get(key: string): Promise<any | null> {
+  async get(key: string): Promise<unknown | null> {
     await this.init();
     if (!this.db) throw new Error("Database not initialized");
 
@@ -134,7 +134,7 @@ export const cacheManager = new CacheManager();
 
 // LocalStorage fallback for simple data
 export const localStorageCache = {
-  set(key: string, data: any, ttlMinutes: number = 60): void {
+  set(key: string, data: unknown, ttlMinutes: number = 60): void {
     if (typeof window === "undefined") return;
     
     const entry = {
@@ -145,7 +145,7 @@ export const localStorageCache = {
     localStorage.setItem(key, JSON.stringify(entry));
   },
 
-  get(key: string): any | null {
+  get(key: string): unknown | null {
     if (typeof window === "undefined") return null;
     
     const item = localStorage.getItem(key);

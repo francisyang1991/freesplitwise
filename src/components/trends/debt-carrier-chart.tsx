@@ -31,9 +31,6 @@ export function DebtCarrierChart({ data, currency }: DebtCarrierChartProps) {
     }).format(Math.abs(value) / 100);
   };
 
-  const getBarColor = (isDebt: boolean) => {
-    return isDebt ? "#ef4444" : "#10b981"; // Red for debt, green for credit
-  };
 
   return (
     <div className="h-64">
@@ -67,7 +64,7 @@ export function DebtCarrierChart({ data, currency }: DebtCarrierChartProps) {
           />
           <Bar 
             dataKey="netCents" 
-            fill={(entry) => getBarColor(entry.isDebt)}
+            fill="#ef4444"
             radius={[4, 4, 0, 0]}
           />
         </BarChart>

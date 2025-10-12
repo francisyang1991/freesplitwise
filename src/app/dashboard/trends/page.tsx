@@ -34,9 +34,16 @@ export default async function TrendsPage() {
       expenses: {
         include: {
           payers: {
-            include: {
+            select: {
+              id: true,
+              membershipId: true,
+              amountCents: true,
               membership: {
-                include: {
+                select: {
+                  id: true,
+                  userId: true,
+                  role: true,
+                  joinedAt: true,
                   user: {
                     select: {
                       id: true,
@@ -50,9 +57,17 @@ export default async function TrendsPage() {
             },
           },
           shares: {
-            include: {
+            select: {
+              id: true,
+              membershipId: true,
+              weight: true,
+              amountCents: true,
               membership: {
-                include: {
+                select: {
+                  id: true,
+                  userId: true,
+                  role: true,
+                  joinedAt: true,
                   user: {
                     select: {
                       id: true,
@@ -65,6 +80,14 @@ export default async function TrendsPage() {
               },
             },
           },
+          createdBy: {
+            select: {
+              id: true,
+              name: true,
+              email: true,
+              image: true,
+            },
+          },
         },
         orderBy: {
           occurredAt: "desc",
@@ -73,5 +96,5 @@ export default async function TrendsPage() {
     },
   });
 
-  return <TrendsDashboard groups={groups} userId={session.user.id} />;
+  return <TrendsDashboard groups={groups} />;
 }

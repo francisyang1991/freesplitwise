@@ -5,7 +5,7 @@ import type { ExpenseSummary } from '@/lib/expense-serializers';
 
 // Mock the currency utilities
 jest.mock('@/lib/currency', () => ({
-  formatCurrency: (amount: number, currency: string) => `$${(amount / 100).toFixed(2)}`,
+  formatCurrency: (amount: number) => `$${(amount / 100).toFixed(2)}`,
   parseCurrencyToCents: (value: unknown) => {
     if (typeof value === 'string') {
       const cleaned = value.replace(/[$,]/g, '');

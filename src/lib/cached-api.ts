@@ -23,7 +23,7 @@ export class CachedApiClient {
       try {
         const cached = await cacheManager.get(key);
         if (cached) {
-          return cached;
+          return cached as T;
         }
       } catch (error) {
         console.warn("Cache read failed:", error);
@@ -50,7 +50,7 @@ export class CachedApiClient {
     return data;
   }
 
-  async post<T>(url: string, body: any, options: ApiOptions = {}): Promise<T> {
+  async post<T>(url: string, body: unknown, options: ApiOptions = {}): Promise<T> {
     const { cacheKey } = options;
     const fullUrl = `${this.baseUrl}${url}`;
 
@@ -80,7 +80,7 @@ export class CachedApiClient {
     return data;
   }
 
-  async put<T>(url: string, body: any, options: ApiOptions = {}): Promise<T> {
+  async put<T>(url: string, body: unknown, options: ApiOptions = {}): Promise<T> {
     const { cacheKey } = options;
     const fullUrl = `${this.baseUrl}${url}`;
 

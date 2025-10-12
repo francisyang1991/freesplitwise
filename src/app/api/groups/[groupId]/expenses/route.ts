@@ -156,7 +156,7 @@ export async function POST(req: NextRequest, context: RouteParams) {
             description: parsed.description,
             totalAmountCents: parsed.totalAmountCents,
             currency: parsed.currency,
-          },
+          } as any, // eslint-disable-line @typescript-eslint/no-explicit-any
         },
       },
     },

@@ -62,7 +62,7 @@ export async function PUT(req: NextRequest, context: RouteParams) {
 
   const updatedExpense = await prisma.$transaction(async (tx) => {
     // Record changes for history
-    const changes: any = {};
+    const changes: Record<string, unknown> = {};
     if (existingExpense.description !== parsed.description) {
       changes.description = parsed.description;
     }
@@ -139,7 +139,7 @@ export async function PUT(req: NextRequest, context: RouteParams) {
           expenseId: existingExpense.id,
           userId: session.user.id,
           action: "updated",
-          changes,
+          changes: changes as any, // eslint-disable-line @typescript-eslint/no-explicit-any
         },
       });
     }
@@ -189,7 +189,7 @@ export async function DELETE(req: NextRequest, context: RouteParams) {
         changes: {
           description: expense.description,
           totalAmountCents: expense.totalAmountCents,
-        },
+        } as any, // eslint-disable-line @typescript-eslint/no-explicit-any
       },
     });
 

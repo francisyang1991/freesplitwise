@@ -1,7 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getServerAuthSession } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { simplifySettlements, buildSettlementLedger } from "@/lib/settlement";
+import { buildSettlementLedger } from "@/lib/settlement";
+import { toExpenseSummary } from "@/lib/expense-serializers";
+import { toGroupMemberInfo } from "@/lib/group-serializers";
 
 export async function GET(
   request: NextRequest,
@@ -117,11 +119,12 @@ export async function GET(
     }
 
     // Calculate settlements
-    const settlements = simplifySettlements(group.expenses);
-    const ledgerSettlements = buildSettlementLedger(settlements, group.memberships);
+    const serializedExpenses = group.expenses.map(toExpenseSummary);
+    const serializedMemberships = group.memberships.map(toGroupMemberInfo);
+    const ledgerSettlements = buildSettlementLedger(serializedExpenses, serializedMemberships);
 
     // Merge tracked settlements with calculated ones
-    const mergedSettlements = ledgerSettlements.map((settlement) => {
+    const mergedSettlements = ledgerSettlements.settlements.map((settlement) => {
       const trackedSettlement = group.settlements.find(
         (tracked) =>
           tracked.fromMembershipId === settlement.fromMembershipId &&

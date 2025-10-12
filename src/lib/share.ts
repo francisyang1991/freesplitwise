@@ -65,7 +65,7 @@ export class ShareManager {
     }, 3000);
   }
 
-  async shareExpense(expense: any, groupName: string): Promise<boolean> {
+  async shareExpense(expense: { description: string; totalAmountCents: number }, groupName: string): Promise<boolean> {
     const shareData: ShareData = {
       title: `Expense: ${expense.description}`,
       text: `Expense: ${expense.description}\nAmount: ${expense.totalAmountCents / 100}\nGroup: ${groupName}`,
@@ -75,7 +75,7 @@ export class ShareManager {
     return this.share(shareData);
   }
 
-  async shareGroup(group: any): Promise<boolean> {
+  async shareGroup(group: { name: string; inviteCode: string }): Promise<boolean> {
     const shareData: ShareData = {
       title: `Group: ${group.name}`,
       text: `Join my group "${group.name}" on SplitNinja!`,
@@ -85,7 +85,7 @@ export class ShareManager {
     return this.share(shareData);
   }
 
-  async shareSettlement(settlement: any, groupName: string): Promise<boolean> {
+  async shareSettlement(settlement: { fromMember: { name: string }; toMember: { name: string }; amountCents: number }, groupName: string): Promise<boolean> {
     const shareData: ShareData = {
       title: `Settlement: ${settlement.fromMember.name} → ${settlement.toMember.name}`,
       text: `Settlement in ${groupName}:\n${settlement.fromMember.name} owes ${settlement.toMember.name} ${settlement.amountCents / 100}`,
