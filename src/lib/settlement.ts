@@ -27,6 +27,10 @@ export const computeBalances = (
   expenses: ExpenseSummary[],
   members: GroupMemberInfo[],
 ): BalanceEntry[] => {
+  if (!members || !Array.isArray(members)) {
+    return [];
+  }
+  
   const memberMap = new Map(members.map((member) => [member.membershipId, member]));
   const ledger = new Map<string, { paid: number; owed: number }>();
 

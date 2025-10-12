@@ -90,7 +90,7 @@ export function TrendsDashboard({ groups, userId }: TrendsDashboardProps) {
   const debtData = useMemo(() => {
     if (!selectedGroup) return [];
 
-    const balances = computeBalances(selectedGroup.expenses);
+    const balances = computeBalances(selectedGroup.expenses, selectedGroup.memberships);
     
     return balances.map((balance) => ({
       userId: balance.member.userId,
