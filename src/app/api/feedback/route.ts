@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { sendFeedbackNotification } from "@/lib/notifications";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
@@ -26,12 +27,18 @@ export async function POST(request: Request) {
   }
 
   try {
-    await prisma.feedback.create({
+    const record = await prisma.feedback.create({
       data: {
         userId: session.user.id,
         message,
         rating,
       },
+    });
+    await sendFeedbackNotification({
+      message,
+      rating,
+      feedbackId: record.id,
+      author: session.user,
     });
   } catch (error) {
     console.error("Failed to store feedback", error);

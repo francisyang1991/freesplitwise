@@ -5,6 +5,7 @@ import { GroupsSection } from "@/components/groups/groups-section";
 import { toGroupSummary } from "@/lib/group-serializers";
 import { getMembershipNetBalances } from "@/lib/balances";
 import { FeedbackPanel } from "@/components/feedback/feedback-panel";
+import { AdminFeedbackPanel } from "@/components/feedback/admin-feedback-panel";
 import { CompanyInfoCard } from "@/components/company/company-info";
 
 export default async function DashboardPage() {
@@ -12,6 +13,8 @@ export default async function DashboardPage() {
   if (!session) {
     redirect("/signin");
   }
+
+  const isAdmin = session.user.role === "ADMIN";
 
   const groups = await prisma.group.findMany({
     where: {
@@ -49,6 +52,18 @@ export default async function DashboardPage() {
     return toGroupSummary(group, session.user.id, net);
   });
 
+  const feedbackEntries = isAdmin
+    ? await prisma.feedback.findMany({
+        orderBy: { createdAt: "desc" },
+        take: 20,
+        include: {
+          user: {
+            select: { id: true, name: true, email: true },
+          },
+        },
+      })
+    : [];
+
   return (
     <section className="mx-auto flex w-full max-w-5xl flex-col gap-8">
       <div className="flex flex-col gap-2">
@@ -66,6 +81,7 @@ export default async function DashboardPage() {
         <GroupsSection initialGroups={groupSummaries} />
         <div className="flex flex-col gap-6">
           <FeedbackPanel />
+          {isAdmin ? <AdminFeedbackPanel entries={feedbackEntries} /> : null}
           <CompanyInfoCard />
         </div>
       </div>
