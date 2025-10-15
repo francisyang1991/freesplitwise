@@ -7,6 +7,7 @@ import { getMembershipNetBalances } from "@/lib/balances";
 import { FeedbackPanel } from "@/components/feedback/feedback-panel";
 import { AdminFeedbackPanel } from "@/components/feedback/admin-feedback-panel";
 import { CompanyInfoCard } from "@/components/company/company-info";
+import { FriendsPanel } from "@/components/friends/friends-panel";
 
 export default async function DashboardPage() {
   const session = await getServerAuthSession();
@@ -80,6 +81,7 @@ export default async function DashboardPage() {
       <div className="grid gap-6 lg:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]">
         <GroupsSection initialGroups={groupSummaries} />
         <div className="flex flex-col gap-6">
+          <FriendsPanel />
           <FeedbackPanel />
           {isAdmin ? <AdminFeedbackPanel entries={feedbackEntries} /> : null}
           <CompanyInfoCard />

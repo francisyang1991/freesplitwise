@@ -3,6 +3,7 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { toGroupMemberInfo } from "@/lib/group-serializers";
+import { createGroupFriendships } from "@/lib/friendship";
 
 type RouteParams = {
   params: Promise<{
@@ -106,6 +107,11 @@ export async function POST(req: NextRequest, context: RouteParams) {
       return results;
     });
 
+    // Create friendships for all newly added members
+    for (const membership of createdMemberships) {
+      await createGroupFriendships(membership.userId, groupId);
+    }
+
     return NextResponse.json({ added: createdMemberships.length, members: createdMemberships }, { status: 201 });
   }
 
@@ -156,6 +162,9 @@ export async function POST(req: NextRequest, context: RouteParams) {
       },
     },
   });
+
+  // Create friendships with all existing group members
+  await createGroupFriendships(user.id, groupId);
 
   return NextResponse.json(toGroupMemberInfo(membership), { status: 201 });
 }

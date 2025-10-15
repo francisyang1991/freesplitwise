@@ -3,6 +3,7 @@ import { NextResponse, type NextRequest } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { createGroupFriendships } from "@/lib/friendship";
 
 type RouteParams = {
   params: Promise<{
@@ -47,6 +48,9 @@ export async function POST(_req: NextRequest, context: RouteParams) {
       role: "MEMBER",
     },
   });
+
+  // Create friendships with all existing group members
+  await createGroupFriendships(session.user.id, group.id);
 
   revalidatePath("/dashboard");
   revalidatePath(`/dashboard/groups/${group.id}`);
