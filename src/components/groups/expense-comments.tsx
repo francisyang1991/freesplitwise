@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useSession } from "next-auth/react";
 import { formatDistanceToNow } from "date-fns";
+import { getCachedValue, invalidateCache, setCachedValue } from "@/lib/client-cache";
 
 type ExpenseComment = {
   id: string;
@@ -35,14 +36,25 @@ export function ExpenseComments({ groupId, expenseId, refreshKey = 0 }: ExpenseC
   useEffect(() => {
     const fetchComments = async () => {
       try {
+        const cacheKey = `comments:${groupId}:${expenseId}`;
+        const cached = getCachedValue<ExpenseComment[]>(cacheKey);
+        if (cached) {
+          setComments(cached);
+          setLoading(false);
+          return;
+        }
+
         const response = await fetch(
           `/api/groups/${groupId}/expenses/${expenseId}/comments`,
+          { cache: "no-store" },
         );
         if (!response.ok) {
           throw new Error("Failed to fetch comments");
         }
         const data = await response.json();
-        setComments(data.comments ?? []);
+        const list = data.comments ?? [];
+        setComments(list);
+        setCachedValue(cacheKey, list, 15_000);
       } catch (err) {
         setError(err instanceof Error ? err.message : "Failed to fetch comments");
       } finally {
@@ -81,7 +93,13 @@ export function ExpenseComments({ groupId, expenseId, refreshKey = 0 }: ExpenseC
       }
 
       const data = await response.json();
-      setComments((prev) => [...prev, data.comment]);
+      const cacheKey = `comments:${groupId}:${expenseId}`;
+      setComments((prev) => {
+        const next = [...prev, data.comment];
+        setCachedValue(cacheKey, next, 15_000);
+        return next;
+      });
+      invalidateCache((key) => key === cacheKey);
       setInput("");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Unable to post comment");

@@ -1,10 +1,11 @@
 "use client";
 
-import { useEffect, useMemo, useState, useTransition } from "react";
+import { useCallback, useEffect, useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import type { SettlementSuggestion } from "@/lib/settlement";
 import type { GroupMemberInfo } from "@/lib/group-serializers";
 import { formatCurrency } from "@/lib/currency";
+import { getCachedValue, invalidateCache, setCachedValue } from "@/lib/client-cache";
 
 type SettleUpDialogProps = {
   groupId: string;
@@ -27,15 +28,68 @@ export function SettleUpDialog({
   const router = useRouter();
   const [isOpen, setIsOpen] = useState(false);
   const [selectedSettlementId, setSelectedSettlementId] = useState<string | null>(null);
+  const [settlementState, setSettlementState] = useState<SettlementSuggestion[]>(settlements);
   const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
+
+  useEffect(() => {
+    setSettlementState(settlements);
+  }, [settlements]);
+
+  const fetchSettlements = useCallback(
+    async (force = false) => {
+      const cacheKey = `settlements:${groupId}`;
+      if (!force) {
+        const cached = getCachedValue<SettlementSuggestion[]>(cacheKey);
+        if (cached) {
+          setSettlementState(cached);
+          return;
+        }
+      }
+
+      try {
+        const response = await fetch(`/api/groups/${groupId}/settlements`, {
+          cache: "no-store",
+        });
+        if (!response.ok) {
+          throw new Error("Failed to refresh settlements");
+        }
+        const payload = await response.json();
+        const nextSettlements: SettlementSuggestion[] = payload.settlements ?? [];
+        setSettlementState(nextSettlements);
+        setCachedValue(cacheKey, nextSettlements);
+      } catch (err) {
+        console.error("Failed to refresh settlements", err);
+      }
+    },
+    [groupId],
+  );
+
+  useEffect(() => {
+    const handler = (event: Event) => {
+      if (
+        event instanceof CustomEvent &&
+        event.detail &&
+        typeof event.detail === "object" &&
+        "groupId" in event.detail &&
+        event.detail.groupId === groupId
+      ) {
+        invalidateCache((key) => key.startsWith(`settlements:${groupId}`));
+        void fetchSettlements(true);
+      }
+    };
+    window.addEventListener("group:expenses-updated", handler);
+    return () => {
+      window.removeEventListener("group:expenses-updated", handler);
+    };
+  }, [fetchSettlements, groupId]);
 
   const relevantSettlements = useMemo(() => {
     if (!currentMemberId) {
       return [];
     }
 
-    return settlements
+    return settlementState
       .filter(
         (settlement) =>
           settlement.fromMembershipId === currentMemberId ||
@@ -63,7 +117,7 @@ export function SettleUpDialog({
             : `You owe ${counterpartyName} ${amount}`,
         };
       });
-  }, [currentMemberId, currency, members, settlements]);
+  }, [currentMemberId, currency, members, settlementState]);
 
   useEffect(() => {
     if (relevantSettlements.length === 0) {
@@ -105,6 +159,8 @@ export function SettleUpDialog({
           throw new Error("Unable to update settlement right now. Please try again.");
         }
 
+        invalidateCache((key) => key.startsWith(`settlements:${groupId}`));
+        await fetchSettlements(true);
         setIsOpen(false);
         router.refresh();
       } catch (err) {
@@ -164,7 +220,10 @@ export function SettleUpDialog({
     <>
       <button
         type="button"
-        onClick={() => setIsOpen(true)}
+        onClick={() => {
+          setIsOpen(true);
+          void fetchSettlements(false);
+        }}
         disabled={!hasActionableSettlements}
         className="rounded-md border border-emerald-400 px-3 py-1.5 text-xs font-semibold uppercase tracking-wide text-emerald-600 transition hover:bg-emerald-50 disabled:cursor-not-allowed disabled:border-zinc-200 disabled:text-zinc-400 disabled:hover:bg-transparent"
       >

@@ -1,3 +1,5 @@
+export const revalidate = 10;
+
 import { redirect } from "next/navigation";
 import { getServerAuthSession } from "@/lib/auth";
 import { FriendsPanel } from "@/components/friends/friends-panel";

@@ -334,132 +334,125 @@ export async function PUT(req: NextRequest, context: RouteParams) {
       });
     }
 
-    const commentClient =
-      (tx as any).expenseComment ?? (prisma as any).expenseComment ?? null;
-
-    if (commentClient?.create) {
+    try {
       const displayName = session.user.name ?? session.user.email ?? "Someone";
 
-      try {
-        if (costChanged) {
-          const oldAmount = formatCurrency(
-            existingExpense.totalAmountCents,
-            existingExpense.currency,
-          );
-          const newAmount = formatCurrency(parsed.totalAmountCents, parsed.currency);
-          await commentClient.create({
-            data: {
-              expenseId: existingExpense.id,
-              authorName: "SplitNinja",
-              body: `${displayName} updated cost from ${oldAmount} to ${newAmount}`,
-            },
-          });
-        }
-
-        if (payerCountChanged || payerNameSetChanged) {
-          const previous = describePayers(
-            existingExpense.payers.map((payer) => ({
-              membershipId: payer.membershipId,
-              amountCents: payer.amountCents,
-              membership: payer.membership,
-            })),
-            existingExpense.currency,
-          );
-          const current = describePayers(
-            expense.payers.map((payer) => ({
-              membershipId: payer.membershipId,
-              amountCents: payer.amountCents,
-              membership: payer.membership,
-            })),
-            expense.currency,
-          );
-
-          const removed = previousPayerIds
-            .filter((id) => !currentPayerIds.includes(id))
-            .map((id) => membershipLookup.get(id))
-            .filter(Boolean)
-            .map((member) => member?.name ?? member?.email ?? "Member");
-          const added = currentPayerIds
-            .filter((id) => !previousPayerIds.includes(id))
-            .map((id) => membershipLookup.get(id))
-            .filter(Boolean)
-            .map((member) => member?.name ?? member?.email ?? "Member");
-
-          let detail = "";
-          if (removed.length > 0) {
-            detail += ` Removed: ${removed.join(", ")}.`;
-          }
-          if (added.length > 0) {
-            detail += ` Added: ${added.join(", ")}.`;
-          }
-          if (!detail && payerAmountsChanged) {
-            detail = " Amount split updated.";
-          }
-
-          const detailText = detail.trim();
-
-          await commentClient.create({
-            data: {
-              expenseId: existingExpense.id,
-              authorName: "SplitNinja",
-              body: detailText
-                ? `Payer changed from ${previous} to ${current}. ${detailText}`
-                : `Payer changed from ${previous} to ${current}`,
-            },
-          });
-        }
-
-        if (shareCountChanged || shareNameSetChanged || shareWeightsChanged) {
-          const removedShares = previousShareIds
-            .filter((id) => !currentShareIds.includes(id))
-            .map(resolveMemberName);
-          const addedShares = currentShareIds
-            .filter((id) => !previousShareIds.includes(id))
-            .map(resolveMemberName);
-
-          const adjustedShares: string[] = [];
-          if (!shareNameSetChanged && shareWeightsChanged) {
-            previousShareIds.forEach((id) => {
-              const prev = existingShareMap.get(id);
-              const next = newShareMap.get(id);
-              if (!prev || !next) return;
-              if (prev.amountCents !== next.amountCents || prev.weight !== next.weight) {
-                const name = resolveMemberName(id);
-                adjustedShares.push(
-                  `${name} (${formatCurrency(prev.amountCents, existingExpense.currency)} → ${formatCurrency(next.amountCents, expense.currency)})`,
-                );
-              }
-            });
-          }
-
-          const shareDetails: string[] = [];
-          if (removedShares.length > 0) {
-            shareDetails.push(`Removed: ${removedShares.join(", ")}.`);
-          }
-          if (addedShares.length > 0) {
-            shareDetails.push(`Added: ${addedShares.join(", ")}.`);
-          }
-          if (adjustedShares.length > 0) {
-            shareDetails.push(`Amounts adjusted: ${adjustedShares.join(", ")}.`);
-          }
-
-          const shareBody = shareDetails.length > 0
-            ? `Split participants updated. ${shareDetails.join(" ")}`
-            : "Split participants updated.";
-
-          await commentClient.create({
-            data: {
-              expenseId: existingExpense.id,
-              authorName: "SplitNinja",
-              body: shareBody,
-            },
-          });
-        }
-      } catch (commentError) {
-        console.warn("Failed to create automated expense comment", commentError);
+      if (costChanged) {
+        const oldAmount = formatCurrency(
+          existingExpense.totalAmountCents,
+          existingExpense.currency,
+        );
+        const newAmount = formatCurrency(parsed.totalAmountCents, parsed.currency);
+        await prisma.expenseComment.create({
+          data: {
+            expenseId: existingExpense.id,
+            authorName: "SplitNinja",
+            body: `${displayName} updated cost from ${oldAmount} to ${newAmount}`,
+          },
+        });
       }
-    } else {
-      console.warn("ExpenseComment model unavailable; skipping automated comment.");
+
+      if (payerCountChanged || payerNameSetChanged) {
+        const previous = describePayers(
+          existingExpense.payers.map((payer) => ({
+            membershipId: payer.membershipId,
+            amountCents: payer.amountCents,
+            membership: payer.membership,
+          })),
+          existingExpense.currency,
+        );
+        const current = describePayers(
+          expense.payers.map((payer) => ({
+            membershipId: payer.membershipId,
+            amountCents: payer.amountCents,
+            membership: payer.membership,
+          })),
+          expense.currency,
+        );
+
+        const removed = previousPayerIds
+          .filter((id) => !currentPayerIds.includes(id))
+          .map((id) => membershipLookup.get(id))
+          .filter(Boolean)
+          .map((member) => member?.name ?? member?.email ?? "Member");
+        const added = currentPayerIds
+          .filter((id) => !previousPayerIds.includes(id))
+          .map((id) => membershipLookup.get(id))
+          .filter(Boolean)
+          .map((member) => member?.name ?? member?.email ?? "Member");
+
+        let detail = "";
+        if (removed.length > 0) {
+          detail += ` Removed: ${removed.join(", ")}.`;
+        }
+        if (added.length > 0) {
+          detail += ` Added: ${added.join(", ")}.`;
+        }
+        if (!detail && payerAmountsChanged) {
+          detail = " Amount split updated.";
+        }
+
+        const detailText = detail.trim();
+
+        await prisma.expenseComment.create({
+          data: {
+            expenseId: existingExpense.id,
+            authorName: "SplitNinja",
+            body: detailText
+              ? `Payer changed from ${previous} to ${current}. ${detailText}`
+              : `Payer changed from ${previous} to ${current}`,
+          },
+        });
+      }
+
+      if (shareCountChanged || shareNameSetChanged || shareWeightsChanged) {
+        const removedShares = previousShareIds
+          .filter((id) => !currentShareIds.includes(id))
+          .map(resolveMemberName);
+        const addedShares = currentShareIds
+          .filter((id) => !previousShareIds.includes(id))
+          .map(resolveMemberName);
+
+        const adjustedShares: string[] = [];
+        if (!shareNameSetChanged && shareWeightsChanged) {
+          previousShareIds.forEach((id) => {
+            const prev = existingShareMap.get(id);
+            const next = newShareMap.get(id);
+            if (!prev || !next) return;
+            if (prev.amountCents !== next.amountCents || prev.weight !== next.weight) {
+              const name = resolveMemberName(id);
+              adjustedShares.push(
+                `${name} (${formatCurrency(prev.amountCents, existingExpense.currency)} → ${formatCurrency(next.amountCents, expense.currency)})`,
+              );
+            }
+          });
+        }
+
+        const shareDetails: string[] = [];
+        if (removedShares.length > 0) {
+          shareDetails.push(`Removed: ${removedShares.join(", ")}.`);
+        }
+        if (addedShares.length > 0) {
+          shareDetails.push(`Added: ${addedShares.join(", ")}.`);
+        }
+        if (adjustedShares.length > 0) {
+          shareDetails.push(`Amounts adjusted: ${adjustedShares.join(", ")}.`);
+        }
+
+        const shareBody = shareDetails.length > 0
+          ? `Split participants updated. ${shareDetails.join(" ")}`
+          : "Split participants updated.";
+
+        await prisma.expenseComment.create({
+          data: {
+            expenseId: existingExpense.id,
+            authorName: "SplitNinja",
+            body: shareBody,
+          },
+        });
+      }
+    } catch (commentError) {
+      console.warn("Failed to create automated expense comment", commentError);
     }
 
     return expense;

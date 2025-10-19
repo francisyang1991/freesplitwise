@@ -1,3 +1,5 @@
+export const revalidate = 10;
+
 import { redirect } from "next/navigation";
 import { getServerAuthSession } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";

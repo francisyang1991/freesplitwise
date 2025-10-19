@@ -1,3 +1,5 @@
+export const revalidate = 10;
+
 import { notFound, redirect } from "next/navigation";
 import { getServerAuthSession } from "@/lib/auth";
 import { APP_URL } from "@/lib/env";

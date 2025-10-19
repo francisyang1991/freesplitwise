@@ -193,6 +193,8 @@ export function GroupExpensesSection({
     return cents && cents > 0 ? sum + cents : sum;
   }, 0);
 
+  const paidTotalMatches = totalPaidCents === totalAmountCents;
+
   const includedRows = rows.filter((row) => row.included);
   const selectedCount = includedRows.length;
   const totalWeight = includedRows.reduce((sum, row) => {
@@ -244,25 +246,6 @@ export function GroupExpensesSection({
     return result;
   }, [expenses, members]);
 
-  const selectedPayerId = useMemo(() => {
-    const paidEntries = rows.map((row) => ({
-      membershipId: row.membershipId,
-      cents: parseCurrencyToCents(row.paid) ?? 0,
-    }));
-    const exact = paidEntries.find(
-      (entry) => entry.cents > 0 && entry.cents === totalAmountCents,
-    );
-    if (exact) return exact.membershipId;
-    const largest = paidEntries.reduce<{
-      membershipId: string;
-      cents: number;
-    } | null>((acc, entry) => {
-      if (!acc || entry.cents > acc.cents) return entry;
-      return acc;
-    }, null);
-    return largest && largest.cents > 0 ? largest.membershipId : null;
-  }, [rows, totalAmountCents]);
-
   const handleRowChange = (
     membershipId: string,
     key: "paid" | "weight" | "included",
@@ -272,6 +255,14 @@ export function GroupExpensesSection({
       prevRows.map((row) => {
         if (row.membershipId !== membershipId) return row;
         if (key === "paid") {
+          const cents = parseCurrencyToCents(String(value));
+          if (!cents || cents <= 0) {
+            return {
+              ...row,
+              paid: "",
+              autoPaid: true,
+            };
+          }
           return {
             ...row,
             paid: String(value),
@@ -546,30 +537,35 @@ export function GroupExpensesSection({
     payerBackupRef.current = null;
   };
 
-  const selectPayer = (membershipId: string) => {
-    const formattedTotal = totalAmountCents > 0 ? (totalAmountCents / 100).toFixed(2) : "";
+  const togglePayerSelection = (membershipId: string, selected: boolean) => {
     defaultPayerAppliedRef.current = true;
-    updateRowsWithDistribution((prevRows) =>
-      prevRows.map((row) => {
-        if (row.membershipId === membershipId) {
-          return {
-            ...row,
-            paid: formattedTotal,
-            autoPaid: false,
-          };
-        }
+    setRows((prevRows) => {
+      let updatedRows = prevRows.map((row) => {
+        if (row.membershipId !== membershipId) return row;
         return {
           ...row,
+          autoPaid: !selected,
           paid: "",
-          autoPaid: true,
         };
-      }),
-      false // Don't force auto-distribution for manual payer selection
-    );
-    closePayerModal(false);
+      });
+
+      if (!updatedRows.some((row) => row.included && !row.autoPaid)) {
+        const fallbackId =
+          sessionMemberId ?? updatedRows.find((row) => row.included)?.membershipId ?? null;
+        if (fallbackId) {
+          updatedRows = updatedRows.map((row) =>
+            row.membershipId === fallbackId
+              ? { ...row, autoPaid: false, paid: "" }
+              : row,
+          );
+        }
+      }
+
+      return distributeAutoPaid(updatedRows, totalAmountCents);
+    });
   };
 
-  const payerSummaryForForm = formatPayerSummaryFromRows(rows, memberLookup, sessionMemberId);
+  const payerSummaryForForm = formatPayerSummaryFromRows(normalizedRowsForDisplay, memberLookup, sessionMemberId);
   const dispatchExpensesUpdated = useCallback(() => {
     window.dispatchEvent(
       new CustomEvent("group:expenses-updated", {
@@ -933,8 +929,9 @@ export function GroupExpensesSection({
                     className="mt-2 w-full rounded-md border border-zinc-300 px-3 py-2 text-sm text-zinc-900 shadow-sm focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-200"
                     required
                   />
-                  <p className="mt-1 text-xs text-zinc-500">
+                  <p className={`mt-1 text-xs ${paidTotalMatches ? 'text-zinc-500' : 'text-amber-600'}`}>
                     Paid total: {formatCurrency(totalPaidCents, currency)}
+                    {!paidTotalMatches && ` (Expected: ${formatCurrency(totalAmountCents, currency)})`}
                   </p>
                 </div>
                 <div className="rounded-lg border border-zinc-200 bg-zinc-50 p-3 text-sm text-zinc-600">
@@ -1044,6 +1041,7 @@ export function GroupExpensesSection({
                             onChange={(event) =>
                               handleRowChange(row.membershipId, "included", event.target.checked)
                             }
+                            aria-label={`Include ${displayName(member)} in split`}
                             className="h-5 w-5"
                           />
                         </li>
@@ -1072,6 +1070,7 @@ export function GroupExpensesSection({
                               onChange={(event) =>
                                 handleRowChange(row.membershipId, "included", event.target.checked)
                               }
+                              aria-label={`Include ${displayName(member)} in split`}
                               className="h-4 w-4"
                             />
                             {displayName(member)}
@@ -1131,7 +1130,7 @@ export function GroupExpensesSection({
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
           <div className="h-full w-full max-w-lg overflow-y-auto rounded-xl bg-white p-6 shadow-xl">
             <div className="mb-4 flex items-center justify-between">
-              <h2 className="text-lg font-semibold text-zinc-900">Select payer</h2>
+              <h2 className="text-lg font-semibold text-zinc-900">Select payers</h2>
               <button
                 type="button"
                 onClick={() => closePayerModal(true)}
@@ -1144,38 +1143,57 @@ export function GroupExpensesSection({
             <div className="space-y-3">
               {rows.map((row) => {
                 const member = memberLookup.get(row.membershipId) ?? null;
-                const isSelected = row.membershipId === selectedPayerId;
+                const isSelected = !row.autoPaid;
                 return (
-                  <button
+                  <div
                     key={row.membershipId}
-                    type="button"
-                    onClick={() => selectPayer(row.membershipId)}
-                    className={`flex w-full items-center justify-between rounded-lg border px-4 py-3 text-left transition ${
-                      isSelected
-                        ? "border-emerald-500 bg-emerald-50"
-                        : "border-zinc-200 bg-white hover:border-emerald-400"
+                    className={`rounded-lg border px-4 py-3 transition ${
+                      isSelected ? "border-emerald-500 bg-emerald-50" : "border-zinc-200 bg-white"
                     }`}
                   >
-                    <div className="flex flex-col">
-                      <span className="text-sm font-semibold text-zinc-900">
-                        {displayName(member)}
-                      </span>
-                      {totalAmountCents > 0 ? (
-                        <span className="text-xs text-zinc-500">
-                          Pays {formatCurrency(totalAmountCents, currency)}
-                        </span>
-                      ) : null}
+                    <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                      <label className="flex items-center gap-3 text-sm font-medium text-zinc-900">
+                        <input
+                          type="checkbox"
+                          aria-label={`Toggle ${displayName(member)} as payer`}
+                          checked={isSelected}
+                          onChange={(event) =>
+                            togglePayerSelection(row.membershipId, event.target.checked)
+                          }
+                          className="h-4 w-4"
+                        />
+                        <span>{displayName(member)}</span>
+                      </label>
                     </div>
-                    <span
-                      className={`rounded-full px-2 py-1 text-xs font-semibold ${
-                        isSelected ? "bg-emerald-100 text-emerald-700" : "bg-zinc-100 text-zinc-600"
-                      }`}
-                    >
-                      {isSelected ? "Selected" : "Select"}
-                    </span>
-                  </button>
+                  </div>
                 );
               })}
+            </div>
+
+            <div className="mt-4 flex items-center justify-between rounded-md border border-dashed border-zinc-300 bg-zinc-50 px-4 py-2 text-sm">
+              <span>Paid total: {formatCurrency(totalPaidCents, currency)}</span>
+              <span className="text-xs text-zinc-500">
+                Target: {formatCurrency(totalAmountCents, currency)}
+              </span>
+            </div>
+
+            <div className="mt-6 flex items-center justify-end gap-3">
+              <button
+                type="button"
+                onClick={() => closePayerModal(true)}
+                className="rounded-md border border-zinc-300 px-3 py-1.5 text-sm font-semibold text-zinc-600 transition hover:bg-zinc-100"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  closePayerModal(false);
+                }}
+                className="rounded-md bg-emerald-600 px-3 py-1.5 text-sm font-semibold text-white shadow-sm transition hover:bg-emerald-500"
+              >
+                Save
+              </button>
             </div>
           </div>
         </div>
@@ -1264,6 +1282,28 @@ const distributeAutoPaid = (
     next[index].paid = value;
   };
 
+  const manualEntries = rows
+    .map((row, idx) => ({ row, idx }))
+    .filter(({ row }) => row.included && !row.autoPaid);
+
+  if (manualEntries.length > 0) {
+    let remaining = totalAmountCents;
+    manualEntries.forEach(({ idx }, index) => {
+      const share = index === manualEntries.length - 1
+        ? Math.max(0, remaining)
+        : Math.floor(totalAmountCents / manualEntries.length);
+      remaining -= share;
+      const formatted = share > 0 ? (share / 100).toFixed(2) : "";
+      setPaid(idx, formatted);
+    });
+
+    rows.forEach((row, idx) => {
+      if (row.autoPaid && row.paid !== "") setPaid(idx, "");
+    });
+
+    return next ?? rows;
+  }
+
   const manualPaidCents = rows.reduce((sum, row) => {
     if (!row.included || row.autoPaid) return sum;
     const cents = parseCurrencyToCents(row.paid);
@@ -1275,7 +1315,6 @@ const distributeAutoPaid = (
   const autoEntries = rows
     .map((row, idx) => ({ row, idx }))
     .filter(({ row }) => row.included && row.autoPaid);
-
 
   rows.forEach((row, idx) => {
     if (!row.included || amountToDistribute <= 0) {
@@ -1304,7 +1343,7 @@ const distributeAutoPaid = (
     
     // Ensure the last entry gets the remainder to avoid rounding errors
     if (index === autoEntries.length - 1) {
-      amount = distributable - distributed;
+      amount = Math.max(0, distributable - distributed);
     }
     
     distributed += amount;

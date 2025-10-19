@@ -16,7 +16,7 @@ type FormState = {
 };
 
 export function GroupsSection({ initialGroups }: Props) {
-  const [groups, setGroups] = useState<GroupSummary[]>(initialGroups);
+  const [groups, setGroups] = useState<GroupSummary[]>(() => initialGroups);
   const [formState, setFormState] = useState<FormState>({
     name: "",
     description: "",

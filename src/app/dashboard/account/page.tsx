@@ -1,68 +1,16 @@
+export const revalidate = 10;
+
 import { redirect } from "next/navigation";
-import { getServerAuthSession } from "@/lib/auth";
-import { prisma } from "@/lib/prisma";
 import { AccountPanel } from "@/components/account/account-panel";
-import { toGroupSummary } from "@/lib/group-serializers";
-import { getMembershipNetBalances } from "@/lib/balances";
+import { getAuthedUser, loadAccountSnapshot } from "@/lib/dashboard-server";
 import { formatCurrency } from "@/lib/currency";
 
 export default async function AccountPage() {
-  const session = await getServerAuthSession();
+  const session = await getAuthedUser();
   if (!session) {
     redirect("/signin");
   }
-
-  const groups = await prisma.group.findMany({
-    where: {
-      memberships: {
-        some: { userId: session.user.id },
-      },
-    },
-    include: {
-      memberships: {
-        select: {
-          id: true,
-          userId: true,
-          role: true,
-        },
-      },
-    },
-    orderBy: {
-      createdAt: "desc",
-    },
-  });
-
-  const userMemberships = groups.flatMap((group) =>
-    group.memberships.filter((membership) => membership.userId === session.user.id),
-  );
-
-  const netMap = await getMembershipNetBalances(
-    userMemberships.map((membership) => membership.id),
-  );
-
-  const groupSummaries = groups.map((group) => {
-    const membership = group.memberships.find(
-      (entry) => entry.userId === session.user.id,
-    );
-    const net = membership ? netMap.get(membership.id) ?? 0 : 0;
-    return toGroupSummary(group, session.user.id, net);
-  });
-
-  const balanceByCurrency = new Map<string, number>();
-  for (const summary of groupSummaries) {
-    const net = summary.netBalanceCents ?? 0;
-    balanceByCurrency.set(
-      summary.currency,
-      (balanceByCurrency.get(summary.currency) ?? 0) + net,
-    );
-  }
-
-  const balances = Array.from(balanceByCurrency.entries()).map(
-    ([currency, amountCents]) => ({
-      currency,
-      amountCents,
-    }),
-  );
+  const { groupSummaries, balances } = await loadAccountSnapshot(session.user.id);
 
   return (
     <section className="mx-auto flex w-full max-w-5xl flex-col gap-8">

@@ -1,9 +1,9 @@
+export const revalidate = 10;
+
 import { redirect } from "next/navigation";
 import { getServerAuthSession } from "@/lib/auth";
-import { prisma } from "@/lib/prisma";
 import { GroupsSection } from "@/components/groups/groups-section";
-import { toGroupSummary } from "@/lib/group-serializers";
-import { getMembershipNetBalances } from "@/lib/balances";
+import { loadGroupsSnapshot } from "@/lib/dashboard-server";
 
 export default async function GroupsPage() {
   const session = await getServerAuthSession();
@@ -11,43 +11,7 @@ export default async function GroupsPage() {
     redirect("/signin");
   }
 
-  const groups = await prisma.group.findMany({
-    where: {
-      memberships: {
-        some: {
-          userId: session.user.id,
-        },
-      },
-    },
-    include: {
-      memberships: {
-        select: {
-          id: true,
-          userId: true,
-          role: true,
-        },
-      },
-    },
-    orderBy: {
-      createdAt: "desc",
-    },
-  });
-
-  const userMemberships = groups.flatMap((group) =>
-    group.memberships.filter((membership) => membership.userId === session.user.id),
-  );
-
-  const netMap = await getMembershipNetBalances(
-    userMemberships.map((membership) => membership.id),
-  );
-
-  const groupSummaries = groups.map((group) => {
-    const membership = group.memberships.find(
-      (entry) => entry.userId === session.user.id,
-    );
-    const net = membership ? netMap.get(membership.id) ?? 0 : 0;
-    return toGroupSummary(group, session.user.id, net);
-  });
+  const { groupSummaries } = await loadGroupsSnapshot(session.user.id);
 
   return (
     <section className="mx-auto flex w-full max-w-5xl flex-col gap-6">
