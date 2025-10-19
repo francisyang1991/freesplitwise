@@ -13,15 +13,21 @@ import {
 import { toExpenseSummary } from "@/lib/expense-serializers";
 import { buildSettlementLedger } from "@/lib/settlement";
 import { generateUniqueInviteCode } from "@/lib/invite-code";
+import { SettleUpDialog } from "@/components/groups/settle-up-dialog";
 
 type GroupPageProps = {
   params: Promise<{
     groupId: string;
   }>;
+  searchParams?: Promise<{
+    expenseId?: string;
+  }>;
 };
 
-export default async function GroupPage({ params }: GroupPageProps) {
+export default async function GroupPage({ params, searchParams }: GroupPageProps) {
   const { groupId } = await params;
+  const resolvedSearchParams = (await searchParams) ?? {};
+  const initialExpenseId = resolvedSearchParams.expenseId ?? null;
   const session = await getServerAuthSession();
   if (!session) {
     redirect("/signin");
@@ -145,16 +151,25 @@ export default async function GroupPage({ params }: GroupPageProps) {
               {owner ? <span>Owner: {owner.user?.name ?? "Unknown"}</span> : null}
             </div>
           </div>
-          <GroupSettings
-            groupId={group.id}
-            members={memberInfos}
-            isAdmin={isAdmin}
-            canDelete={canDelete}
-            canLeave={canLeave}
-            inviteLink={inviteLink}
-            canRemoveMembers={canRemoveMembers}
-            currentMembershipId={currentMember?.membershipId ?? null}
-          />
+          <div className="flex flex-col items-end gap-2 sm:flex-row sm:items-start sm:gap-3">
+            <SettleUpDialog
+              groupId={group.id}
+              currency={group.currency}
+              settlements={settlementLedger.settlements}
+              members={memberInfos}
+              currentMemberId={currentMember?.membershipId ?? null}
+            />
+            <GroupSettings
+              groupId={group.id}
+              members={memberInfos}
+              isAdmin={isAdmin}
+              canDelete={canDelete}
+              canLeave={canLeave}
+              inviteLink={inviteLink}
+              canRemoveMembers={canRemoveMembers}
+              currentMembershipId={currentMember?.membershipId ?? null}
+            />
+          </div>
         </div>
       </div>
 
@@ -174,6 +189,7 @@ export default async function GroupPage({ params }: GroupPageProps) {
           members={memberInfos}
           initialExpenses={expenseSummaries}
           currentMember={currentMember}
+          initialSelectedExpenseId={initialExpenseId}
         />
         <aside className="flex flex-col gap-6">
           <GroupSettlementsPanel

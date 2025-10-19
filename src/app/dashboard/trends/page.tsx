@@ -96,5 +96,9 @@ export default async function TrendsPage() {
     },
   });
 
-  return <TrendsDashboard groups={groups} />;
+  return (
+    <div id="activities" className="scroll-mt-28">
+      <TrendsDashboard groups={groups} />
+    </div>
+  );
 }

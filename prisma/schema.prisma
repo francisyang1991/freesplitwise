@@ -22,6 +22,7 @@ model User {
   sessions        Session[]
   feedbacks       Feedback[]
   expenseHistory  ExpenseHistory[]
+  expenseComments ExpenseComment[] @relation("ExpenseCommentAuthor")
   friendships     Friendship[] @relation("UserFriendships")
   friendsOf       Friendship[] @relation("FriendOf")
   createdAt       DateTime     @default(now())
@@ -112,6 +113,7 @@ model Expense {
   payers           ExpensePayer[]
   shares           ExpenseShare[]
   history          ExpenseHistory[]
+  comments         ExpenseComment[]
 }
 
 model ExpensePayer {
@@ -150,6 +152,19 @@ model ExpenseHistory {
   createdAt   DateTime @default(now())
   expense     Expense  @relation(fields: [expenseId], references: [id], onDelete: Cascade)
   user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model ExpenseComment {
+  id         String   @id @default(cuid())
+  expenseId  String
+  authorId   String?
+  authorName String?
+  body       String
+  createdAt  DateTime @default(now())
+  expense    Expense  @relation(fields: [expenseId], references: [id], onDelete: Cascade)
+  author     User?    @relation("ExpenseCommentAuthor", fields: [authorId], references: [id], onDelete: SetNull)
+
+  @@index([expenseId, createdAt])
 }
 
 model Settlement {

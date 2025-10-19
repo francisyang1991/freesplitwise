@@ -18,6 +18,8 @@ export function SettlementActionButton({
 }: SettlementActionButtonProps) {
   const [isOpen, setIsOpen] = useState(false);
   const buttonRef = useRef<HTMLDivElement>(null);
+  const isCurrentUserCreditor =
+    currentMemberId != null && currentMemberId === settlement.toMembershipId;
 
   // Close popup when clicking outside
   useEffect(() => {
@@ -39,6 +41,7 @@ export function SettlementActionButton({
   const getButtonText = () => {
     if (settlement.status === "REQUESTED") return "Requested";
     if (settlement.status === "PAID") return "Paid";
+    if (isCurrentUserCreditor) return "Request";
     return "Pay";
   };
 
@@ -48,6 +51,9 @@ export function SettlementActionButton({
     }
     if (settlement.status === "PAID") {
       return "bg-green-100 text-green-700 border-green-300";
+    }
+    if (isCurrentUserCreditor) {
+      return "border border-amber-400 text-amber-600 hover:bg-amber-50";
     }
     return "border border-emerald-400 text-emerald-600 hover:bg-emerald-50";
   };

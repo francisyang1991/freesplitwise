@@ -4,8 +4,8 @@ import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } fro
 import type { GroupMemberInfo } from "@/lib/group-serializers";
 import type { ExpenseSummary } from "@/lib/expense-serializers";
 import { formatCurrency, parseCurrencyToCents } from "@/lib/currency";
-import { ExpenseTimeline } from "./expense-timeline";
 import { shareManager } from "@/lib/share";
+import { ExpenseComments } from "./expense-comments";
 
 type Props = {
   groupId: string;
@@ -13,6 +13,7 @@ type Props = {
   members: GroupMemberInfo[];
   initialExpenses: ExpenseSummary[];
   currentMember: GroupMemberInfo | null;
+  initialSelectedExpenseId?: string | null;
 };
 
 type MemberRow = {
@@ -48,6 +49,7 @@ export function GroupExpensesSection({
   members,
   initialExpenses,
   currentMember,
+  initialSelectedExpenseId = null,
 }: Props) {
   const initialRows = useMemo(
     () =>
@@ -77,6 +79,14 @@ export function GroupExpensesSection({
   const [listError, setListError] = useState<string | null>(null);
   const [pendingDeleteExpense, setPendingDeleteExpense] = useState<ExpenseSummary | null>(null);
   const [isExpensesRefreshing, setIsExpensesRefreshing] = useState(false);
+  const initialSelectionRef = useRef<string | null>(initialSelectedExpenseId);
+  const [commentsRefreshKey, setCommentsRefreshKey] = useState(0);
+
+  useEffect(() => {
+    if (initialSelectedExpenseId) {
+      initialSelectionRef.current = initialSelectedExpenseId;
+    }
+  }, [initialSelectedExpenseId]);
 
   const sessionMemberId = currentMember?.membershipId ?? null;
   const defaultPayerAppliedRef = useRef(false);
@@ -154,6 +164,15 @@ export function GroupExpensesSection({
       );
     });
   }, [totalAmountCents]);
+
+  useEffect(() => {
+    if (!initialSelectionRef.current) return;
+    const match = expenses.find((expense) => expense.id === initialSelectionRef.current);
+    if (match) {
+      setDetailExpense(match);
+      initialSelectionRef.current = null;
+    }
+  }, [expenses]);
 
   const memberLookup = useMemo(
     () => new Map(members.map((member) => [member.membershipId, member])),
@@ -411,6 +430,10 @@ export function GroupExpensesSection({
         return prev.map((expense) => (expense.id === editingExpenseId ? saved : expense));
       });
       dispatchExpensesUpdated();
+      if (editingExpenseId) {
+        setDetailExpense(saved);
+        setCommentsRefreshKey((prev) => prev + 1);
+      }
 
       setIsFormOpen(false);
       resetForm();
@@ -460,8 +483,8 @@ export function GroupExpensesSection({
   };
 
   const openDetail = (expense: ExpenseSummary) => {
-    // Directly open edit form instead of detail view
-    openForm(expense);
+    setDetailExpense(expense);
+    setCommentsRefreshKey((prev) => prev + 1);
   };
 
   const closeDetail = () => {
@@ -719,7 +742,7 @@ export function GroupExpensesSection({
       {detailExpense ? (
         <div className="fixed inset-0 z-40 flex items-center justify-center bg-black/40 p-4">
           <div className="h-full w-full max-w-3xl overflow-y-auto rounded-xl bg-white p-6 shadow-xl">
-            <div className="mb-4 flex items-center justify-between">
+            <div className="mb-4 flex items-start justify-between gap-4">
               <div>
                 <p className="text-xs uppercase tracking-wide text-zinc-500">
                   {new Date(detailExpense.occurredAt).toLocaleDateString()}
@@ -728,13 +751,47 @@ export function GroupExpensesSection({
                   {detailExpense.description}
                 </h2>
               </div>
-              <button
-                type="button"
-                onClick={closeDetail}
-                className="text-sm font-semibold text-zinc-500 transition hover:text-zinc-700"
-              >
-                Close
-              </button>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    closeDetail();
+                    openForm(detailExpense);
+                  }}
+                  className="rounded-md border border-zinc-200 p-2 text-zinc-500 transition hover:border-emerald-300 hover:text-emerald-600"
+                  aria-label="Edit expense"
+                  title="Edit expense"
+                >
+                  <svg
+                    className="h-4 w-4"
+                    viewBox="0 0 20 20"
+                    fill="none"
+                    xmlns="http://www.w3.org/2000/svg"
+                  >
+                    <path
+                      d="M13.586 3.586a2 2 0 012.828 2.828l-8.25 8.25-3.536.707.707-3.536 8.25-8.25Z"
+                      stroke="currentColor"
+                      strokeWidth="1.5"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    />
+                    <path
+                      d="M11.5 5.5l3 3"
+                      stroke="currentColor"
+                      strokeWidth="1.5"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    />
+                  </svg>
+                </button>
+                <button
+                  type="button"
+                  onClick={closeDetail}
+                  className="rounded-md border border-zinc-200 px-3 py-1 text-sm font-semibold text-zinc-500 transition hover:border-zinc-300 hover:text-zinc-700"
+                >
+                  Close
+                </button>
+              </div>
             </div>
 
             <div className="space-y-4">
@@ -750,22 +807,15 @@ export function GroupExpensesSection({
               />
             </div>
 
-            {/* Expense Timeline */}
             <div className="mt-6">
-              <ExpenseTimeline expense={detailExpense} groupId={groupId} />
+              <ExpenseComments
+                key={`comments-${detailExpense.id}-${commentsRefreshKey}`}
+                groupId={groupId}
+                expenseId={detailExpense.id}
+              />
             </div>
 
             <div className="mt-6 flex items-center gap-3">
-              <button
-                type="button"
-                onClick={() => {
-                  closeDetail();
-                  openForm(detailExpense);
-                }}
-                className="inline-flex items-center justify-center rounded-md bg-emerald-600 px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-emerald-500"
-              >
-                Edit expense
-              </button>
               <button
                 type="button"
                 onClick={async () => {
