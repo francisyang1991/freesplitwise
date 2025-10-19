@@ -61,11 +61,13 @@ Ship a functional web demo by end of day featuring Google sign-in, basic group c
 6. Close out Slice 5 polish/doc updates. ✅
 
 ## Post-Demo Follow-Ups
-- Harden data validation and access control.
+- Harden data validation and access control. ✅
 - Add reminders/notifications and advanced debt heuristics.
 - Expand provider options after feedback.
 - Promote database provider to PostgreSQL and capture structured migrations for production.
 - Design refreshed landing/dashboard layout to highlight group list with modal-first creation flow. ✅
 - Introduce modular expense split engine with tabbed UI for equal, weighted, and (future) custom modes. ✅
 - Add owner/admin tooling in group settings (invite link, add members, seed dummy data, leave/delete actions). ✅
-- **Next**: build invite onboarding flow, notification system, mobile-first adjustments, and settlement export options.
+- **Completed (2025-01-15)**: Fixed critical payer selection bugs, implemented automatic friendship system, added expense commenting
+- **In Progress**: Mobile app development with React Native/Expo foundation
+- **Next**: Complete mobile app integration, notification system, and settlement export options.

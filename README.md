@@ -34,9 +34,14 @@ SplitNinja is an open-source web application that helps friends and groups split
 - Slice 2 groups: ✅ Authenticated group creation, listing, and detail pages.
 - Slice 3 expenses: ✅ Multi-payer, weighted-share expense entry and history per group.
 - Slice 4 settlements: ✅ Ledger math, settlement API, and copyable payment suggestions.
-- Slice 5 polish & docs: ⚙️ Responsive audit, error messaging, admin tools, and deployment prep.
+- Slice 5 polish & docs: ✅ Responsive audit, error messaging, admin tools, and deployment prep.
 - Admin helpers: ✅ One-click seeding of 5 dummy members for rapid QA.
 - Expense UX: ✅ Edit existing expenses, see per-person balance summaries, and jump straight to Venmo with suggested settlement actions.
+- **Recent fixes (2025-01-15)**: ✅ Fixed critical payer selection bugs, improved checkbox functionality, enhanced auto-distribution logic
+- **Friendship system**: ✅ Automatic friendship creation when users join groups
+- **Expense comments**: ✅ Added commenting functionality with proper database schema
+- **Mobile app foundation**: ✅ React Native/Expo app structure with Google OAuth integration
+- **Test coverage**: ✅ Comprehensive component tests for expense form and payer selection
 
 ## Demo Workflow
 1. `npm run dev` and visit `http://localhost:3000`.

@@ -64,6 +64,19 @@ npm run test:coverage
 - ✅ Retry logic on conflicts
 - ✅ Error handling after max attempts
 
+### Component Tests (React Testing Library)
+
+#### Expense Form (`src/components/groups/__tests__/group-expenses-section.test.tsx`)
+- ✅ Basic form rendering and interaction
+- ✅ Split equally checkbox behavior
+- ✅ Paid total calculation accuracy
+- ✅ Payer selection via checkboxes
+- ✅ Multiple payer selection and deselection
+- ✅ Ensuring at least one payer remains selected
+- ✅ Free selection/deselection of individual payers
+- ✅ Paid total updates when changing payers
+- ✅ Edge cases with complex amounts
+
 ## Test Organization
 
 ```
@@ -136,15 +149,38 @@ global.fetch = jest.fn()
 5. **Keep tests isolated** - Each test should be independent
 6. **Use beforeEach/afterEach** - Clean up state between tests
 
-## Key Lessons from Bug Fix
+## Key Lessons from Recent Bug Fixes
 
-The recent expense validation bug taught us:
+### Payer Selection Bug Fix (2025-01-15)
+
+The recent payer selection bugs taught us:
+
+1. **State management complexity**: Direct state updates vs. derived state calculations can cause inconsistencies
+2. **Auto-distribution edge cases**: Rounding errors in distribution algorithms can cause negative amounts
+3. **UI state synchronization**: Modal state and form state must be properly synchronized
+4. **Comprehensive testing**: Component tests catch UI bugs that unit tests miss
+
+### Example from Payer Selection Fix
+
+```typescript
+// ❌ BAD - causes rounding errors
+amount = Math.round((normalizedWeight / totalWeight) * distributable);
+
+// ✅ GOOD - prevents negative amounts
+if (index === autoEntries.length - 1) {
+  amount = Math.max(0, distributable - distributed);
+}
+```
+
+### Expense Validation Bug Fix
+
+The earlier expense validation bug taught us:
 
 1. **Filter logic must be explicit**: `filter((x) => x ?? 0)` doesn't work as expected because `0` is falsy
 2. **Validation requires comprehensive tests**: Edge cases with zero amounts, empty strings, and null values
 3. **Tests catch regressions**: When refactoring, tests ensure old bugs don't return
 
-### Example from Bug Fix
+### Example from Validation Fix
 
 ```typescript
 // ❌ BAD - includes zero amounts
@@ -156,18 +192,20 @@ The recent expense validation bug taught us:
 
 ## Test Statistics
 
-- **Total test suites**: 5
-- **Total tests**: 53
+- **Total test suites**: 6
+- **Total tests**: 65+
 - **All passing**: ✅
-- **Coverage**: Core utilities at 100%
+- **Coverage**: Core utilities at 100%, Component tests added
 
 ## Future Testing Goals
 
-- [ ] Add component tests for expense form
+- [x] Add component tests for expense form
 - [ ] Add integration tests for API routes
 - [ ] Add E2E tests with Playwright
 - [ ] Set up CI/CD test automation
 - [ ] Add performance benchmarks for settlement algorithm
+- [ ] Add tests for friendship system
+- [ ] Add tests for expense commenting functionality
 
 ## Troubleshooting
 

@@ -1,5 +1,17 @@
 # Changelog
 
+## 2025-01-15
+- **Fixed critical payer selection bugs**: Resolved issues where paid total didn't match total amount when changing payers
+- **Improved checkbox functionality**: Fixed payer selection modal to allow free selection/deselection of all payers
+- **Enhanced auto-distribution logic**: Fixed rounding errors in `distributeAutoPaid` function that caused negative amounts
+- **Updated payer summary display**: Fixed "Who paid?" section to correctly show multiple payers after saving
+- **Added comprehensive test coverage**: Created tests for payer selection, paid total calculations, and checkbox behavior
+- **Implemented automatic friendship system**: Users in the same group automatically become friends for easier group management
+- **Added ExpenseComment model**: Enabled expense commenting functionality with proper database schema
+- **Fixed TypeScript errors**: Resolved all linting issues related to `any` types and unused variables
+- **Improved settlement action button**: Enhanced UI positioning and permission checks for settlement actions
+- **Updated mobile app foundation**: Created React Native/Expo app structure with Google OAuth integration
+
 ## 2025-10-07
 - Initialized SplitNinja repository documentation.
 - Added product plan outlining vision, scope, and milestones.
